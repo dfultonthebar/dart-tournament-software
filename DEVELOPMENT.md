@@ -200,6 +200,78 @@ npm run build
 npm start
 ```
 
+## End-to-End Testing with Playwright
+
+This project is configured with Playwright MCP (Model Context Protocol) for automated browser testing.
+
+### Setup Playwright Testing
+
+```bash
+# Install Playwright and browsers
+npm init playwright@latest
+
+# Or manually install in project root
+npm install -D @playwright/test
+npx playwright install
+```
+
+### Running E2E Tests
+
+```bash
+# Run all tests
+npx playwright test
+
+# Run tests in headed mode (see browser)
+npx playwright test --headed
+
+# Run specific test file
+npx playwright test tests/scoring-terminal.spec.ts
+
+# Run tests in UI mode
+npx playwright test --ui
+```
+
+### Test Examples
+
+Create test files in `tests/` directory:
+
+**tests/scoring-terminal.spec.ts**
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('scoring terminal loads', async ({ page }) => {
+  await page.goto('http://localhost:3001');
+  await expect(page).toHaveTitle(/Tournament/);
+});
+
+test('touch targets are 44px minimum', async ({ page }) => {
+  await page.goto('http://localhost:3001');
+  const buttons = page.locator('button');
+  const count = await buttons.count();
+
+  for (let i = 0; i < count; i++) {
+    const box = await buttons.nth(i).boundingBox();
+    if (box) {
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+  }
+});
+```
+
+### Claude Code MCP Integration
+
+The `.claude/mcp_config.json` file configures Playwright MCP for use with Claude Code.
+
+When using Claude Code, you can:
+- Request automated UI testing
+- Take screenshots for documentation
+- Test WebSocket real-time updates
+- Verify PWA installation
+- Test touch interactions
+
+See `.claude/README.md` for more details.
+
 ## Notes
 
 - Backend runs in development mode with auto-reload
@@ -207,3 +279,4 @@ npm start
 - All services log to their respective tmux windows
 - Database and Redis must be running before starting services
 - Frontend dependencies are auto-installed if missing
+- Playwright MCP enables automated browser testing via Claude Code
