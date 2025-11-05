@@ -1,0 +1,60 @@
+{
+  "name": "dart-tournament-software",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WAMO Dart Tournament Management System - Complete solution for Raspberry Pi deployment",
+  "scripts": {
+    "dev": "./start-dev.sh",
+    "stop": "./stop-dev.sh",
+    "test": "./test-system.sh",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:report": "playwright show-report",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "lint:backend": "cd backend && black --check . && isort --check . && flake8",
+    "lint:frontend": "npm run lint:scoring && npm run lint:display && npm run lint:mobile",
+    "lint:scoring": "cd scoring-terminal && npm run lint",
+    "lint:display": "cd display-terminal && npm run lint",
+    "lint:mobile": "cd mobile-app && npm run lint",
+    "format": "npm run format:backend && npm run format:frontend",
+    "format:backend": "cd backend && black . && isort .",
+    "format:frontend": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "install:all": "npm run install:frontends && npm run install:backend",
+    "install:frontends": "cd scoring-terminal && npm install && cd ../display-terminal && npm install && cd ../mobile-app && npm install",
+    "install:backend": "cd backend && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt",
+    "build:all": "npm run build:frontends",
+    "build:frontends": "cd scoring-terminal && npm run build && cd ../display-terminal && npm run build && cd ../mobile-app && npm run build",
+    "prepare": "husky install || true"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^20.0.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.1.1",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0",
+    "python": ">=3.12.0"
+  },
+  "keywords": [
+    "dart",
+    "tournament",
+    "wamo",
+    "raspberry-pi",
+    "fastapi",
+    "nextjs",
+    "websocket",
+    "pwa"
+  ],
+  "author": "WAMO Dart Tournament System",
+  "license": "MIT",
+  "workspaces": [
+    "scoring-terminal",
+    "display-terminal",
+    "mobile-app"
+  ]
+}

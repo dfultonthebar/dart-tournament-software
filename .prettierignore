@@ -1,0 +1,41 @@
+# Dependencies
+node_modules
+venv
+env
+.venv
+
+# Build outputs
+.next
+out
+build
+dist
+*.pyc
+__pycache__
+
+# Logs
+*.log
+logs
+
+# Test results
+test-results
+playwright-report
+coverage
+htmlcov
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea
+.vscode
+
+# Environment
+.env
+.env.*
+
+# Lock files
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+poetry.lock
