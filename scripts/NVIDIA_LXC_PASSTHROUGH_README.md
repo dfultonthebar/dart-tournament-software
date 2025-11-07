@@ -51,16 +51,33 @@ sudo ./fix-nvidia-drivers.sh
 sudo ./fix-nvidia-drivers.sh 535
 ```
 
+### 1b. `fix-nvidia-kernel-module.sh` ⭐ NEW
+
+**USE THIS if you get "Unable to load kernel module 'nvidia.ko'" error!**
+
+Fixes common NVIDIA kernel module loading errors caused by:
+- Nouveau driver conflicts
+- Missing/mismatched kernel headers
+- UEFI Secure Boot blocking unsigned modules
+- Kernel/driver version mismatches
+
+**Usage:**
+```bash
+sudo ./fix-nvidia-kernel-module.sh
+```
+
 **What it does:**
-1. Detects current NVIDIA setup
-2. Unloads NVIDIA kernel modules
-3. Removes existing NVIDIA packages
-4. Cleans up old files and directories
-5. Ensures nouveau is blacklisted
-6. Installs kernel headers and build tools
-7. Installs NVIDIA drivers
-8. Loads kernel modules
-9. Verifies installation with nvidia-smi
+1. Checks for and removes nouveau driver conflict
+2. Verifies/installs correct kernel headers
+3. Checks UEFI Secure Boot status
+4. Completely removes old NVIDIA installation
+5. Blacklists nouveau permanently
+6. Installs NVIDIA driver with DKMS
+7. Updates initramfs
+8. Loads NVIDIA modules
+9. Tests with nvidia-smi
+
+**This is the recommended first step if nvidia-smi fails!**
 
 ### 2. `setup-nvidia-lxc-passthrough.sh`
 
@@ -314,6 +331,83 @@ docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi
 ```
 
 ## Troubleshooting
+
+### Problem: "Unable to load kernel module 'nvidia.ko'" ⭐ MOST COMMON
+
+**Error message:**
+```
+ERROR: Unable to load the kernel module 'nvidia.ko'. This happens most frequently when this
+kernel module was built against the wrong or improperly configured kernel sources...
+```
+
+**Causes:**
+1. Nouveau driver (open-source) is loaded and conflicting
+2. Missing or mismatched kernel headers
+3. UEFI Secure Boot blocking unsigned modules
+4. Kernel/driver version mismatch after Proxmox update
+
+**Solution:**
+```bash
+# Use the dedicated fix script (RECOMMENDED)
+./fix-nvidia-kernel-module.sh
+
+# This script will:
+# - Check and remove nouveau driver
+# - Verify/install correct kernel headers
+# - Check Secure Boot status
+# - Reinstall NVIDIA driver with DKMS
+# - Blacklist nouveau permanently
+# - Load modules and test
+
+# After running, you may need to reboot
+reboot
+
+# Then verify
+nvidia-smi
+```
+
+**Manual troubleshooting steps if script doesn't work:**
+
+1. **Check if nouveau is loaded:**
+```bash
+lsmod | grep nouveau
+
+# If loaded, unload it:
+rmmod nouveau
+
+# Blacklist it:
+echo "blacklist nouveau" >> /etc/modprobe.d/blacklist-nvidia-nouveau.conf
+echo "options nouveau modeset=0" >> /etc/modprobe.d/blacklist-nvidia-nouveau.conf
+update-initramfs -u
+reboot
+```
+
+2. **Check Secure Boot:**
+```bash
+# If this returns "1", Secure Boot is enabled (blocks NVIDIA)
+od -An -t u1 /sys/firmware/efi/efivars/SecureBoot-* 2>/dev/null | awk '{print $NF}'
+
+# Solution: Disable Secure Boot in BIOS/UEFI
+```
+
+3. **Check kernel headers:**
+```bash
+# Current kernel
+uname -r
+
+# Install matching headers
+apt-get install pve-headers-$(uname -r)
+# or
+apt-get install proxmox-headers-$(uname -r)
+```
+
+4. **Reinstall driver with DKMS:**
+```bash
+apt-get remove --purge 'nvidia-*'
+apt-get install nvidia-driver nvidia-kernel-dkms
+modprobe nvidia
+nvidia-smi
+```
 
 ### Problem: nvidia-smi works on host but not in container
 
