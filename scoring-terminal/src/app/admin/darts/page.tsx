@@ -289,7 +289,7 @@ export default function DartsDashboardPage() {
                   <Link
                     href={`/matches?tournament=${tournament.id}`}
                     className="mt-2 inline-block text-green-400 text-sm hover:underline"
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e: React.MouseEvent) => e.stopPropagation()}
                   >
                     Go to Scoring &rarr;
                   </Link>
