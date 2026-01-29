@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Optional, Literal
 from uuid import UUID
 from datetime import datetime
 
@@ -10,6 +10,7 @@ class PlayerBase(BaseModel):
     email: EmailStr
     phone: Optional[str] = Field(None, max_length=20)
     skill_level: int = Field(default=0, ge=0, le=3)
+    gender: Optional[Literal['M', 'F']] = None
 
 
 class PlayerCreate(PlayerBase):
@@ -23,6 +24,7 @@ class PlayerUpdate(BaseModel):
     phone: Optional[str] = Field(None, max_length=20)
     skill_level: Optional[int] = Field(None, ge=0, le=3)
     is_active: Optional[bool] = None
+    gender: Optional[Literal['M', 'F']] = None
 
 
 class PlayerResponse(PlayerBase):
@@ -48,3 +50,4 @@ class PlayerSelfRegister(BaseModel):
     email: EmailStr
     phone: str = Field(..., min_length=1, max_length=20)
     nickname: Optional[str] = Field(None, max_length=50)
+    gender: Optional[Literal['M', 'F']] = None

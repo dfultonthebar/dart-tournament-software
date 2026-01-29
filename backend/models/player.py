@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Boolean
+from sqlalchemy import Column, String, Integer, Boolean, CheckConstraint
 from sqlalchemy.orm import relationship
 from backend.models.base import BaseModel
 
@@ -16,6 +16,11 @@ class Player(BaseModel):
     is_active = Column(Boolean, default=True)
     marketing_opt_in = Column(Boolean, default=False)  # Opt-in for tournament/promo texts and emails
     qr_code = Column(String(255), nullable=True)  # For quick check-in
+    gender = Column(String(1), nullable=True)  # 'M' or 'F'
+
+    __table_args__ = (
+        CheckConstraint("gender IN ('M', 'F') OR gender IS NULL", name="ck_players_gender"),
+    )
 
     # Relationships
     tournament_entries = relationship("TournamentEntry", back_populates="player", cascade="all, delete-orphan")

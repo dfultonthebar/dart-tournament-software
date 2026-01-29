@@ -40,6 +40,7 @@ export interface Tournament {
   sets_to_win: number;
   double_in: boolean;
   double_out: boolean;
+  is_coed?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -57,6 +58,7 @@ export interface TournamentCreate {
   sets_to_win?: number;
   double_in?: boolean;
   double_out?: boolean;
+  is_coed?: boolean;
 }
 
 export interface TournamentEntry {

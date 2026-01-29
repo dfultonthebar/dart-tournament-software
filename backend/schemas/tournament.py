@@ -19,6 +19,7 @@ class TournamentBase(BaseModel):
     double_in: bool = False
     double_out: bool = True
     master_out: bool = False  # Can finish on double, triple, or bull
+    is_coed: bool = False
 
 
 class TournamentCreate(TournamentBase):
@@ -32,6 +33,7 @@ class TournamentUpdate(BaseModel):
     max_players: Optional[int] = Field(None, gt=0)
     scheduled_date: Optional[date] = None
     scheduled_time: Optional[time] = None
+    is_coed: Optional[bool] = None
 
 
 class TournamentResponse(TournamentBase):

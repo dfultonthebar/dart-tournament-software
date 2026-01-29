@@ -100,11 +100,12 @@ export default function PlayersPage() {
 
   function exportToCSV() {
     // Create CSV content
-    const headers = ['Name', 'Email', 'Phone']
+    const headers = ['Name', 'Email', 'Phone', 'Gender']
     const rows = players.map(p => [
       p.name,
       p.email,
-      p.phone || ''
+      p.phone || '',
+      p.gender || ''
     ])
 
     const csvContent = [
@@ -230,6 +231,7 @@ export default function PlayersPage() {
                 <th className="text-left p-4">Name</th>
                 <th className="text-left p-4">Email</th>
                 <th className="text-left p-4">Phone</th>
+                <th className="text-left p-4">Gender</th>
                 {isAuthenticated && <th className="text-left p-4">Actions</th>}
               </tr>
             </thead>
@@ -239,6 +241,17 @@ export default function PlayersPage() {
                   <td className="p-4 font-medium">{player.name}</td>
                   <td className="p-4 text-gray-400">{player.email}</td>
                   <td className="p-4 text-gray-400">{player.phone || '-'}</td>
+                  <td className="p-4">
+                    {player.gender ? (
+                      <span className={`inline-block text-xs font-bold px-2 py-1 rounded ${
+                        player.gender === 'M' ? 'bg-blue-600 text-white' : 'bg-pink-600 text-white'
+                      }`}>
+                        {player.gender === 'M' ? 'Male' : 'Female'}
+                      </span>
+                    ) : (
+                      <span className="text-gray-500">--</span>
+                    )}
+                  </td>
                   {isAuthenticated && (
                     <td className="p-4">
                       {deleteConfirm === player.id ? (

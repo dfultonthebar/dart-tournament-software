@@ -13,6 +13,7 @@ interface FormData {
   email: string
   phone: string
   nickname: string
+  gender: '' | 'M' | 'F'
 }
 
 interface FormErrors {
@@ -27,6 +28,7 @@ export default function RegisterPage() {
     email: '',
     phone: '',
     nickname: '',
+    gender: '',
   })
   const [errors, setErrors] = useState<FormErrors>({})
   const [loading, setLoading] = useState(false)
@@ -74,6 +76,11 @@ export default function RegisterPage() {
       // Only include nickname if provided
       if (formData.nickname.trim()) {
         payload.nickname = formData.nickname.trim()
+      }
+
+      // Only include gender if selected
+      if (formData.gender) {
+        payload.gender = formData.gender
       }
 
       const response = await fetch(`${getApiUrl()}/players/register`, {
@@ -128,7 +135,7 @@ export default function RegisterPage() {
             <button
               onClick={() => {
                 setSuccess(false)
-                setFormData({ name: '', email: '', phone: '', nickname: '' })
+                setFormData({ name: '', email: '', phone: '', nickname: '', gender: '' })
               }}
               className="btn-touch btn-primary w-full py-4 text-lg"
             >
@@ -183,6 +190,37 @@ export default function RegisterPage() {
             {errors.name && (
               <p className="text-red-400 text-sm mt-1">{errors.name}</p>
             )}
+          </div>
+
+          {/* Gender Field */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Gender <span className="text-gray-500">(optional)</span>
+            </label>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, gender: formData.gender === 'M' ? '' : 'M' })}
+                className={`flex-1 p-4 rounded-lg border text-lg font-medium transition-colors ${
+                  formData.gender === 'M'
+                    ? 'bg-blue-600 border-blue-500 text-white'
+                    : 'bg-gray-700 border-gray-600 text-gray-300 hover:border-gray-500'
+                }`}
+              >
+                Male
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, gender: formData.gender === 'F' ? '' : 'F' })}
+                className={`flex-1 p-4 rounded-lg border text-lg font-medium transition-colors ${
+                  formData.gender === 'F'
+                    ? 'bg-pink-600 border-pink-500 text-white'
+                    : 'bg-gray-700 border-gray-600 text-gray-300 hover:border-gray-500'
+                }`}
+              >
+                Female
+              </button>
+            </div>
           </div>
 
           {/* Email Field */}

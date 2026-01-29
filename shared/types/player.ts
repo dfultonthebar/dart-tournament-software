@@ -6,6 +6,7 @@ export interface Player {
   skill_level: number;
   is_active: boolean;
   qr_code?: string;
+  gender?: 'M' | 'F';
   created_at: string;
   updated_at: string;
 }
@@ -16,6 +17,7 @@ export interface PlayerCreate {
   password: string;
   phone?: string;
   skill_level?: number;
+  gender?: 'M' | 'F';
 }
 
 export interface PlayerUpdate {
@@ -24,6 +26,7 @@ export interface PlayerUpdate {
   phone?: string;
   skill_level?: number;
   is_active?: boolean;
+  gender?: 'M' | 'F';
 }
 
 export interface PlayerLogin {

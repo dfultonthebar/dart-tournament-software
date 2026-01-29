@@ -53,6 +53,7 @@ class Tournament(BaseModel):
     double_out = Column(Boolean, default=True)
     master_out = Column(Boolean, default=False)  # Can finish on double, triple, or bull
     event_id = Column(UUID(as_uuid=True), ForeignKey("events.id", ondelete="CASCADE"), nullable=True)
+    is_coed = Column(Boolean, default=False, server_default="false")
 
     # Relationships
     entries = relationship("TournamentEntry", back_populates="tournament", cascade="all, delete-orphan")

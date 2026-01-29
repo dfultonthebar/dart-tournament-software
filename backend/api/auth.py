@@ -214,6 +214,7 @@ async def player_register(
         phone=request.phone,
         pin=request.pin,
         marketing_opt_in=request.marketing_opt_in,
+        gender=request.gender,
     )
 
     db.add(new_player)

@@ -67,6 +67,7 @@ async def create_tournament(
         double_in=tournament_create.double_in,
         double_out=tournament_create.double_out,
         master_out=tournament_create.master_out,
+        is_coed=tournament_create.is_coed,
         event_id=tournament_create.event_id,
         status=TournamentStatus.DRAFT
     )
@@ -904,15 +905,38 @@ async def generate_lucky_draw_teams(
         db.delete(team)
     await db.flush()
 
-    # Shuffle players randomly
-    player_ids = [e.player_id for e in checked_in_entries]
-    random.shuffle(player_ids)
-
-    # Get player info for names
+    # Get player info for names and gender
+    all_player_ids = [e.player_id for e in checked_in_entries]
     result = await db.execute(
-        select(Player).where(Player.id.in_(player_ids))
+        select(Player).where(Player.id.in_(all_player_ids))
     )
     players_by_id = {p.id: p for p in result.scalars().all()}
+
+    # Build ordered list of player_ids for pairing
+    if tournament.is_coed:
+        # Co-ed mode: pair one male + one female per team
+        males = [pid for pid in all_player_ids if players_by_id.get(pid) and players_by_id[pid].gender == 'M']
+        females = [pid for pid in all_player_ids if players_by_id.get(pid) and players_by_id[pid].gender == 'F']
+        random.shuffle(males)
+        random.shuffle(females)
+
+        # Pair M+F as many as possible
+        paired_ids = []
+        min_count = min(len(males), len(females))
+        for i in range(min_count):
+            paired_ids.append(males[i])
+            paired_ids.append(females[i])
+
+        # Remaining unpaired players of majority gender — pair them together
+        remaining = males[min_count:] + females[min_count:]
+        random.shuffle(remaining)
+        paired_ids.extend(remaining)
+
+        player_ids = paired_ids
+    else:
+        # Standard random pairing
+        player_ids = list(all_player_ids)
+        random.shuffle(player_ids)
 
     # Create teams
     teams = []

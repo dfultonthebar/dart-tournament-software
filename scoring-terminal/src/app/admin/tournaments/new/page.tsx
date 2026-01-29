@@ -47,6 +47,7 @@ function NewTournamentContent() {
     double_in: false,
     double_out: true,
     master_out: false,
+    is_coed: false,
   })
 
   useEffect(() => {
@@ -294,6 +295,25 @@ function NewTournamentContent() {
             )}
           </div>
         </div>
+
+        {formData.format === 'lucky_draw_doubles' && (
+          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.is_coed}
+                onChange={(e) => setFormData({ ...formData, is_coed: e.target.checked })}
+                className="w-5 h-5 rounded"
+              />
+              <div>
+                <span className="font-medium">Co-ed Teams</span>
+                <p className="text-sm text-gray-400 mt-1">
+                  Pair one male + one female per team. Players must have gender set during registration.
+                </p>
+              </div>
+            </label>
+          </div>
+        )}
 
         <div className="grid grid-cols-3 gap-4">
           <div>

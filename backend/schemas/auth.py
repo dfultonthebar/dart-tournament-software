@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Optional, Literal
 from uuid import UUID
 
 
@@ -42,3 +42,4 @@ class PlayerRegisterRequest(BaseModel):
     email: EmailStr = Field(..., description="Email address (required)")
     phone: str = Field(..., min_length=10, max_length=20, description="Phone number (required)")
     marketing_opt_in: bool = Field(False, description="Opt-in to receive texts/emails about tournaments and specials")
+    gender: Optional[Literal['M', 'F']] = Field(None, description="Player gender (M or F)")

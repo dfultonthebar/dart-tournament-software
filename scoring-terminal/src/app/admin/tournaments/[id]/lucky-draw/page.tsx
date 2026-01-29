@@ -69,6 +69,23 @@ export default function LuckyDrawPage() {
     return player?.name || 'Unknown'
   }
 
+  function getPlayerGender(playerId: string): string | undefined {
+    const player = allPlayers.find(p => p.id === playerId)
+    return player?.gender
+  }
+
+  function GenderBadge({ playerId }: { playerId: string }) {
+    const gender = getPlayerGender(playerId)
+    if (!gender) return null
+    return (
+      <span className={`inline-block text-xs font-bold px-1.5 py-0.5 rounded ${
+        gender === 'M' ? 'bg-blue-600 text-white' : 'bg-pink-600 text-white'
+      }`}>
+        {gender}
+      </span>
+    )
+  }
+
   async function generateTeams() {
     if (!token) {
       setError('Please login to generate teams')
@@ -211,11 +228,37 @@ export default function LuckyDrawPage() {
             </div>
           )}
 
+          {tournament.is_coed && playerCount > 0 && (() => {
+            const maleCount = entries.filter(e => getPlayerGender(e.player_id) === 'M').length
+            const femaleCount = entries.filter(e => getPlayerGender(e.player_id) === 'F').length
+            const unsetCount = playerCount - maleCount - femaleCount
+            const imbalance = Math.abs(maleCount - femaleCount)
+            return (
+              <>
+                <div className="bg-gray-600 text-white p-3 rounded mb-4 text-sm">
+                  Co-ed mode: <span className="text-blue-300 font-bold">{maleCount}M</span> / <span className="text-pink-300 font-bold">{femaleCount}F</span>
+                  {unsetCount > 0 && <span className="text-yellow-300"> / {unsetCount} unset</span>}
+                </div>
+                {imbalance > 2 && (
+                  <div className="bg-yellow-600 text-white p-3 rounded mb-4 text-sm">
+                    Gender imbalance detected ({imbalance} difference). Some same-gender teams will be created.
+                  </div>
+                )}
+                {unsetCount > 0 && (
+                  <div className="bg-yellow-600 text-white p-3 rounded mb-4 text-sm">
+                    {unsetCount} player(s) have no gender set. They will not be paired in co-ed pairs.
+                  </div>
+                )}
+              </>
+            )
+          })()}
+
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {entries.map((entry, index) => (
               <div key={entry.id} className="flex items-center justify-between p-3 bg-gray-700 rounded">
                 <div className="flex items-center gap-3">
                   <span className="text-gray-400">#{index + 1}</span>
+                  <GenderBadge playerId={entry.player_id} />
                   <span>{getPlayerName(entry.player_id)}</span>
                 </div>
                 <span className={`text-sm ${entry.paid ? 'text-green-400' : 'text-red-400'}`}>
@@ -266,10 +309,12 @@ export default function LuckyDrawPage() {
                     <div className="flex items-center justify-between">
                       <span className="text-lg font-bold text-blue-400">Team {index + 1}</span>
                     </div>
-                    <div className="mt-2 text-xl">
-                      {team.player1_name || getPlayerName(team.player1_id)}
-                      <span className="text-gray-400 mx-2">&</span>
-                      {team.player2_name || getPlayerName(team.player2_id)}
+                    <div className="mt-2 text-xl flex items-center gap-1 flex-wrap">
+                      <GenderBadge playerId={team.player1_id} />
+                      <span>{team.player1_name || getPlayerName(team.player1_id)}</span>
+                      <span className="text-gray-400 mx-1">&</span>
+                      <GenderBadge playerId={team.player2_id} />
+                      <span>{team.player2_name || getPlayerName(team.player2_id)}</span>
                     </div>
                   </div>
                 ))}
