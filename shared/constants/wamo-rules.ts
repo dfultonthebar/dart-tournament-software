@@ -33,5 +33,5 @@ export const MULTIPLIER_LABELS: Record<DartMultiplier, string> = {
 
 export const TOUCH_TARGET_SIZE = 44; // Minimum touch target size in pixels
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 export const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";

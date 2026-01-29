@@ -2,6 +2,54 @@
 
 This document provides guidance for AI assistants (like Claude Code) working with the WAMO Dart Tournament Management System.
 
+---
+
+## Local Installation Notes (darts-admin Desktop)
+
+**Setup Date:** 2026-01-27
+**Local Path:** ~/DartTournament
+**Repository:** https://github.com/dfultonthebar/dart-tournament-software
+
+### Quick Start (Single Machine, No Docker)
+
+```bash
+# Start all services (opens tmux with all 4 servers)
+cd ~/DartTournament
+./start-dev.sh
+
+# Or use the desktop launcher: "Dart Tournament" in Applications menu
+
+# Stop all services
+./stop-dev.sh
+```
+
+### Services & Ports
+| Service           | Port | URL                        |
+|-------------------|------|----------------------------|
+| Backend API       | 8000 | http://localhost:8000      |
+| Scoring Terminal  | 3001 | http://localhost:3001      |
+| Display Terminal  | 3002 | http://localhost:3002      |
+| Mobile App        | 3003 | http://localhost:3003      |
+| API Docs          | 8000 | http://localhost:8000/docs |
+
+### Database Credentials
+- **Database:** dart_tournament
+- **User:** dart_user
+- **Password:** dart_password
+- **Connection:** postgresql://dart_user:dart_password@localhost:5432/dart_tournament
+
+### Virtual Environments
+- **Backend Python venv:** ~/DartTournament/backend/venv
+- **Activate:** `source ~/DartTournament/backend/venv/bin/activate`
+
+### Tmux Commands (while in start-dev.sh session)
+- `Ctrl+b` then `0-4` - Switch between windows (backend, scoring, display, mobile, monitor)
+- `Ctrl+b` then `n/p` - Next/previous window
+- `Ctrl+b` then `d` - Detach (services keep running)
+- `tmux attach -t dart-tournament-dev` - Reattach to session
+
+---
+
 ## System Overview
 
 This is a **production-ready** dart tournament management system designed for Raspberry Pi deployment, supporting 500+ concurrent players.
@@ -32,17 +80,55 @@ This is a **production-ready** dart tournament management system designed for Ra
 
 ## System Status
 
-✅ **All components are complete and production-ready**
+✅ **Core system complete and production-ready**
 
 The system includes:
 - Complete backend API with JWT auth
 - All 7 WAMO game types (301/501, Cricket, Round the Clock, Killer, Shanghai, Baseball)
-- Three fully-functional frontends
+- **Lucky Draw Doubles** team tournament support (added 2026-01-28)
+- Three frontends (scoring, display, mobile — note: mobile-app is broken, see Known Issues)
 - Comprehensive deployment configurations
 - Complete documentation
 - CI/CD pipeline (GitHub Actions)
 - E2E testing suite (Playwright)
 - Development tooling (linting, formatting, pre-commit hooks)
+
+### Lucky Draw Doubles Feature (2026-01-28)
+
+Team-based tournament format: randomly pair registered players into 2-person teams,
+then run a single elimination bracket where teams are the bracket units.
+
+**Backend files modified:**
+- `backend/models/match.py` — `winner_team_id` column + Team relationship
+- `backend/models/match_player.py` — `team_id`, `team_position` columns + Team relationship
+- `backend/schemas/match.py` — `team_id`, `team_position`, `winner_team_id` in schemas
+- `backend/api/tournaments.py` — `_generate_lucky_draw_doubles_bracket()`, format guard
+- `backend/api/matches.py` — `_advance_team_in_bracket()`, `_check_team_bye_cascade()`, doubles reporting
+
+**Database columns added:**
+- `matches.winner_team_id` (UUID FK -> teams.id)
+- `match_players.team_id` (UUID FK -> teams.id)
+- `match_players.team_position` (Integer, 1 or 2 within team)
+
+**Frontend files updated (team-aware rendering):**
+- `shared/types/match.ts` — MatchPlayerInfo, Match, MatchStatus
+- `display-terminal/src/app/brackets/[id]/page.tsx`
+- `display-terminal/src/app/page.tsx`
+- `scoring-terminal/src/app/brackets/[id]/page.tsx`
+- `scoring-terminal/src/app/admin/announce/page.tsx`
+- `scoring-terminal/src/app/matches/page.tsx`
+
+**How it works:**
+1. Admin creates tournament with format `lucky_draw_doubles`
+2. Players register normally (individual entries)
+3. Admin calls `POST /tournaments/{id}/lucky-draw` to randomly pair into teams
+4. Admin calls `POST /tournaments/{id}/generate-bracket` to create bracket
+5. Each match has 4 MatchPlayers (2 per team), identified by `team_id`
+6. One player per team reports result via `POST /matches/{id}/report-result`
+7. Both teams must agree; disagreement triggers `DISPUTED` status
+8. Winner team advances — both team members appear in next round match
+
+**Simulation script:** `/tmp/sim_doubles.js` — verified 22 players, 11 teams, full bracket completion
 
 ## Working with This System
 
@@ -349,6 +435,47 @@ When helping users, determine:
     │  Database  │     │   Cache   │
     └────────────┘     └───────────┘
 ```
+
+---
+
+## Known Issues (Audit 2026-01-28)
+
+### Not Yet Fixed (require larger refactoring)
+
+**Doubles scoring pages:** `scoring-terminal/src/app/score/[matchId]/page.tsx` and
+`scoring-terminal/src/app/scoring/page.tsx` only support singles matches (2 players).
+They need team grouping logic for 4-player doubles matches.
+
+**Player matches page:** `scoring-terminal/src/app/player/matches/page.tsx` —
+`getOpponent()` returns first non-self player which could be a teammate in doubles.
+Winner check uses `winner_id` instead of `winner_team_id`.
+
+**mobile-app/ is broken:** The `mobile-app/` directory structure is non-functional.
+`mobile-app/package.json` expects a Next.js app at root but the code is nested inside
+`mobile-app/scoring-terminal/`. The `@shared` path alias in its tsconfig resolves to
+a non-existent `mobile-app/shared/` directory. CI build for mobile-app will fail.
+
+**ESLint not installed:** No ESLint packages are installed in any frontend.
+`npm run lint:frontend` and `next lint` commands will fail.
+
+**`getApiUrl()` duplicated in ~20 files:** Each page defines its own inline
+`getApiUrl()` helper. Should be a shared utility.
+
+**`api.ts` uses hardcoded localhost:** `scoring-terminal/src/lib/api.ts` imports
+`API_BASE_URL` from `@shared/constants` (localhost:8000) instead of using
+`window.location.hostname`. Same for `websocket.ts`.
+
+### Fixed in This Session
+
+- Shared `MatchStatus` enum: added `WAITING_FOR_PLAYERS`, `DISPUTED`
+- Shared `MatchPlayerInfo`: added `arrived_at_board`, `reported_win`
+- Shared `Match`: added `dartboard_id`
+- Shared `TournamentEntry`: added `paid`
+- `.replace('_', ' ')` changed to `.replace(/_/g, ' ')` in 7 files
+- Database: added FK constraint on `matches.dartboard_id`
+- Database: added unique index on `players.phone` (fixed 20 duplicate phone records)
+- Database: added 15 FK performance indexes
+- Backend: added `asyncpg` to `requirements.txt`
 
 ---
 

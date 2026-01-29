@@ -2,6 +2,7 @@ export enum TournamentFormat {
   SINGLE_ELIMINATION = "single_elimination",
   DOUBLE_ELIMINATION = "double_elimination",
   ROUND_ROBIN = "round_robin",
+  LUCKY_DRAW_DOUBLES = "lucky_draw_doubles",
 }
 
 export enum TournamentStatus {
@@ -25,6 +26,7 @@ export enum GameType {
 
 export interface Tournament {
   id: string;
+  event_id?: string;  // Optional for backward compatibility
   name: string;
   description?: string;
   game_type: GameType;
@@ -43,6 +45,7 @@ export interface Tournament {
 }
 
 export interface TournamentCreate {
+  event_id: string;
   name: string;
   description?: string;
   game_type: GameType;
@@ -62,5 +65,18 @@ export interface TournamentEntry {
   player_id: string;
   seed?: number;
   checked_in?: string;
+  paid?: boolean;
   created_at: string;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  tournament_id: string;
+  player1_id: string;
+  player2_id: string;
+  player1_name?: string;
+  player2_name?: string;
+  created_at: string;
+  updated_at: string;
 }

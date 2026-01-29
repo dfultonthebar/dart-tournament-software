@@ -7,10 +7,10 @@ set -e  # Exit on error
 
 # Configuration
 SESSION_NAME="dart-tournament-dev"
-BACKEND_DIR="$HOME/dart-tournament-software/backend"
-SCORING_DIR="$HOME/dart-tournament-software/scoring-terminal"
-DISPLAY_DIR="$HOME/dart-tournament-software/display-terminal"
-MOBILE_DIR="$HOME/dart-tournament-software/mobile-app"
+BACKEND_DIR="$HOME/DartTournament/backend"
+SCORING_DIR="$HOME/DartTournament/scoring-terminal"
+DISPLAY_DIR="$HOME/DartTournament/display-terminal"
+MOBILE_DIR="$HOME/DartTournament/mobile-app"
 
 # Colors for output
 RED='\033[0;31m'
@@ -90,9 +90,9 @@ tmux new-session -d -s "$SESSION_NAME" -n "backend"
 
 # Setup backend window
 log_info "Setting up backend (port 8000)..."
-tmux send-keys -t "$SESSION_NAME:backend" "cd $HOME/dart-tournament-software" C-m
+tmux send-keys -t "$SESSION_NAME:backend" "cd $HOME/DartTournament" C-m
 tmux send-keys -t "$SESSION_NAME:backend" "source backend/venv/bin/activate" C-m
-tmux send-keys -t "$SESSION_NAME:backend" "export PYTHONPATH=$HOME/dart-tournament-software:\$PYTHONPATH" C-m
+tmux send-keys -t "$SESSION_NAME:backend" "export PYTHONPATH=$HOME/DartTournament:\$PYTHONPATH" C-m
 tmux send-keys -t "$SESSION_NAME:backend" "echo 'Starting Backend API on http://localhost:8000'" C-m
 tmux send-keys -t "$SESSION_NAME:backend" "uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000" C-m
 
@@ -120,7 +120,7 @@ tmux send-keys -t "$SESSION_NAME:mobile" "npm run dev" C-m
 # Create a monitoring window
 log_info "Setting up monitoring window..."
 tmux new-window -t "$SESSION_NAME" -n "monitor"
-tmux send-keys -t "$SESSION_NAME:monitor" "cd $HOME/dart-tournament-software" C-m
+tmux send-keys -t "$SESSION_NAME:monitor" "cd $HOME/DartTournament" C-m
 tmux send-keys -t "$SESSION_NAME:monitor" "clear" C-m
 tmux send-keys -t "$SESSION_NAME:monitor" "echo '=== Dart Tournament Development Environment ==='" C-m
 tmux send-keys -t "$SESSION_NAME:monitor" "echo ''" C-m

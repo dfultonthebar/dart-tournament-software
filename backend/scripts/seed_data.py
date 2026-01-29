@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from backend.models import (
     Player, Tournament, TournamentEntry, Match, MatchPlayer,
-    GameType, TournamentStatus, MatchStatus
+    GameType, TournamentStatus, TournamentFormat, MatchStatus
 )
 from backend.core.config import settings
 from backend.core.security import get_password_hash
@@ -44,7 +44,8 @@ async def seed_data():
                     name=name,
                     email=f"player{i}@example.com",
                     phone=f"555-010{i:02d}",
-                    password_hash=get_password_hash("password123")
+                    hashed_password=get_password_hash("password123"),
+                    pin=f"{1000 + i}"  # PINs: 1001, 1002, 1003, etc.
                 )
                 players.append(player)
                 session.add(player)
@@ -53,16 +54,17 @@ async def seed_data():
             print(f"✓ Created {len(players)} players")
             
             # Create sample tournaments
-            game_types = [GameType.GAME_501, GameType.CRICKET, GameType.GAME_301]
+            game_types = [GameType.FIVE_ZERO_ONE, GameType.CRICKET, GameType.THREE_ZERO_ONE]
             tournaments = []
-            
+
             for i, game_type in enumerate(game_types, 1):
                 tournament = Tournament(
                     name=f"Weekly {game_type.value.upper()} Championship #{i}",
                     game_type=game_type,
-                    status=TournamentStatus.PENDING if i == 1 else TournamentStatus.ACTIVE,
+                    format=TournamentFormat.SINGLE_ELIMINATION,
+                    status=TournamentStatus.IN_PROGRESS,
                     max_players=16,
-                    start_date=datetime.utcnow() + timedelta(days=i)
+                    start_time=datetime.utcnow() + timedelta(days=i)
                 )
                 tournaments.append(tournament)
                 session.add(tournament)
@@ -97,12 +99,12 @@ async def seed_data():
             match_player1 = MatchPlayer(
                 match_id=match.id,
                 player_id=players[0].id,
-                player_number=1
+                position=1
             )
             match_player2 = MatchPlayer(
                 match_id=match.id,
                 player_id=players[1].id,
-                player_number=2
+                position=2
             )
             session.add(match_player1)
             session.add(match_player2)

@@ -3,27 +3,24 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+  /* Force dark mode - better for bar/tournament environments */
+  --foreground-rgb: 255, 255, 255;
+  --background-rgb: 17, 24, 39; /* gray-900 */
 }
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  background-color: rgb(var(--background-rgb));
+  min-height: 100vh;
+}
+
+/* Improved text readability */
+h1, h2, h3, h4, h5, h6 {
+  @apply text-white font-bold;
+}
+
+p, span, label {
+  @apply text-gray-100;
 }
 
 /* Touch-friendly button styles */
@@ -47,10 +44,67 @@ body {
   @apply bg-red-600 text-white hover:bg-red-700;
 }
 
+/* Card styles */
+.card {
+  @apply bg-gray-800 rounded-lg p-4 border border-gray-700;
+}
+
+/* Form inputs - high contrast */
+input, select, textarea {
+  @apply bg-gray-800 text-white border-gray-600 placeholder-gray-400;
+}
+
+input:focus, select:focus, textarea:focus {
+  @apply border-blue-500 ring-1 ring-blue-500;
+}
+
+/* Table styles */
+table {
+  @apply w-full;
+}
+
+th {
+  @apply bg-gray-800 text-gray-200 font-semibold p-3 text-left;
+}
+
+td {
+  @apply bg-gray-700 text-white p-3 border-b border-gray-600;
+}
+
+tr:hover td {
+  @apply bg-gray-600;
+}
+
+/* Link styles */
+a {
+  @apply text-blue-400 hover:text-blue-300;
+}
+
 /* Prevent text selection on touch */
 .no-select {
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
+}
+
+/* Status badges */
+.badge {
+  @apply px-2 py-1 rounded text-xs font-semibold;
+}
+
+.badge-success {
+  @apply bg-green-600 text-white;
+}
+
+.badge-warning {
+  @apply bg-yellow-600 text-white;
+}
+
+.badge-error {
+  @apply bg-red-600 text-white;
+}
+
+.badge-info {
+  @apply bg-blue-600 text-white;
 }

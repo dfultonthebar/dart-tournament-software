@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, date, time
 from backend.models.tournament import TournamentFormat, TournamentStatus, GameType
 
 
@@ -11,16 +11,18 @@ class TournamentBase(BaseModel):
     game_type: GameType
     format: TournamentFormat
     max_players: Optional[int] = Field(None, gt=0)
-    start_time: Optional[datetime] = None
+    scheduled_date: Optional[date] = None
+    scheduled_time: Optional[time] = None
     starting_score: Optional[int] = Field(None, gt=0)
     legs_to_win: int = Field(default=1, gt=0)
     sets_to_win: int = Field(default=1, gt=0)
     double_in: bool = False
     double_out: bool = True
+    master_out: bool = False  # Can finish on double, triple, or bull
 
 
 class TournamentCreate(TournamentBase):
-    pass
+    event_id: UUID
 
 
 class TournamentUpdate(BaseModel):
@@ -28,13 +30,16 @@ class TournamentUpdate(BaseModel):
     description: Optional[str] = Field(None, max_length=1000)
     status: Optional[TournamentStatus] = None
     max_players: Optional[int] = Field(None, gt=0)
-    start_time: Optional[datetime] = None
+    scheduled_date: Optional[date] = None
+    scheduled_time: Optional[time] = None
 
 
 class TournamentResponse(TournamentBase):
     id: UUID
+    event_id: Optional[UUID] = None
     status: TournamentStatus
-    end_time: Optional[datetime]
+    start_time: Optional[datetime] = None  # Actual start time
+    end_time: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
@@ -53,7 +58,13 @@ class TournamentEntryResponse(BaseModel):
     player_id: UUID
     seed: Optional[int]
     checked_in: Optional[datetime]
+    paid: bool = False
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class TournamentEntryUpdate(BaseModel):
+    paid: Optional[bool] = None
+    seed: Optional[int] = None

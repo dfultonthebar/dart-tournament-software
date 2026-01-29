@@ -4,3 +4,4 @@ export * from './match';
 export * from './game';
 export * from './websocket';
 export * from './auth';
+export * from './event';

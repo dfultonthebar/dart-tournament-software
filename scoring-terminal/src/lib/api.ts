@@ -67,6 +67,17 @@ class ApiClient {
     return response.data;
   }
 
+  // Players
+  async getPlayers(): Promise<Player[]> {
+    const response = await this.client.get<Player[]>('/players');
+    return response.data;
+  }
+
+  async getPlayer(id: string): Promise<Player> {
+    const response = await this.client.get<Player>(`/players/${id}`);
+    return response.data;
+  }
+
   // Tournaments
   async getTournaments(): Promise<Tournament[]> {
     const response = await this.client.get<Tournament[]>('/tournaments');

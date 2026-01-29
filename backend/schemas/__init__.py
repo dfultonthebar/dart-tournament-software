@@ -4,6 +4,7 @@ from backend.schemas.player import (
     PlayerUpdate,
     PlayerResponse,
     PlayerLogin,
+    PlayerSelfRegister,
 )
 from backend.schemas.tournament import (
     TournamentBase,
@@ -12,6 +13,7 @@ from backend.schemas.tournament import (
     TournamentResponse,
     TournamentEntryCreate,
     TournamentEntryResponse,
+    TournamentEntryUpdate,
 )
 from backend.schemas.match import (
     MatchBase,
@@ -36,6 +38,38 @@ from backend.schemas.auth import (
     LoginRequest,
     RegisterRequest,
     PasswordChange,
+    PinLoginRequest,
+    PlayerRegisterRequest,
+)
+from backend.schemas.event import (
+    EventStatus,
+    SportType,
+    EventBase,
+    EventCreate,
+    EventUpdate,
+    EventResponse,
+    EventEntryBase,
+    EventEntryCreate,
+    EventEntryUpdate,
+    EventEntryResponse,
+)
+from backend.schemas.dartboard import (
+    DartboardCreate,
+    DartboardUpdate,
+    DartboardResponse,
+)
+from backend.schemas.team import (
+    TeamBase,
+    TeamCreate,
+    TeamResponse,
+    TeamWithPlayers,
+)
+from backend.schemas.admin import (
+    AdminBase,
+    AdminCreate,
+    AdminUpdate,
+    AdminResponse,
+    AdminLoginRequest,
 )
 
 __all__ = [
@@ -44,12 +78,14 @@ __all__ = [
     "PlayerUpdate",
     "PlayerResponse",
     "PlayerLogin",
+    "PlayerSelfRegister",
     "TournamentBase",
     "TournamentCreate",
     "TournamentUpdate",
     "TournamentResponse",
     "TournamentEntryCreate",
     "TournamentEntryResponse",
+    "TournamentEntryUpdate",
     "MatchBase",
     "MatchCreate",
     "MatchUpdate",
@@ -68,4 +104,28 @@ __all__ = [
     "LoginRequest",
     "RegisterRequest",
     "PasswordChange",
+    "PinLoginRequest",
+    "PlayerRegisterRequest",
+    "EventStatus",
+    "SportType",
+    "EventBase",
+    "EventCreate",
+    "EventUpdate",
+    "EventResponse",
+    "EventEntryBase",
+    "EventEntryCreate",
+    "EventEntryUpdate",
+    "EventEntryResponse",
+    "DartboardCreate",
+    "DartboardUpdate",
+    "DartboardResponse",
+    "TeamBase",
+    "TeamCreate",
+    "TeamResponse",
+    "TeamWithPlayers",
+    "AdminBase",
+    "AdminCreate",
+    "AdminUpdate",
+    "AdminResponse",
+    "AdminLoginRequest",
 ]

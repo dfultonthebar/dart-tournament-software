@@ -10,6 +10,10 @@ class MatchPlayerInfo(BaseModel):
     position: int
     sets_won: int = 0
     legs_won: int = 0
+    arrived_at_board: Optional[datetime] = None
+    reported_win: Optional[bool] = None
+    team_id: Optional[UUID] = None
+    team_position: Optional[int] = None
 
 
 class MatchBase(BaseModel):
@@ -26,6 +30,7 @@ class MatchCreate(MatchBase):
 class MatchUpdate(BaseModel):
     status: Optional[MatchStatus] = None
     winner_id: Optional[UUID] = None
+    winner_team_id: Optional[UUID] = None
 
 
 class MatchResponse(MatchBase):
@@ -34,6 +39,8 @@ class MatchResponse(MatchBase):
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
     winner_id: Optional[UUID]
+    winner_team_id: Optional[UUID] = None
+    dartboard_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
 

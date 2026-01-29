@@ -18,9 +18,11 @@ class BracketService:
     ) -> List[Dict]:
         """
         Generate single elimination bracket.
-        Returns list of match configurations.
+        Returns list of match configurations for all rounds.
         """
         num_players = len(player_ids)
+        if num_players < 2:
+            return []
 
         # Sort players by seed if provided
         if seeds:
@@ -32,33 +34,62 @@ class BracketService:
         num_rounds = ceil(log2(num_players))
         bracket_size = 2 ** num_rounds
 
-        # Add byes if needed
+        # Add byes if needed - place byes at the end to give top seeds easy first round
         num_byes = bracket_size - num_players
         players_with_byes = sorted_players + [None] * num_byes
 
         matches = []
-        round_num = 1
+        match_counter = 1
 
-        # First round
-        for i in range(0, len(players_with_byes), 2):
-            player1 = players_with_byes[i]
-            player2 = players_with_byes[i + 1]
+        # Generate all rounds
+        current_round_slots = players_with_byes
 
-            # Skip if both are byes
-            if player1 is None and player2 is None:
-                continue
+        for round_num in range(1, num_rounds + 1):
+            next_round_slots = []
+            matches_in_round = len(current_round_slots) // 2
 
-            # Auto-advance if one is bye
-            if player1 is None or player2 is None:
-                continue
+            for match_idx in range(matches_in_round):
+                player1 = current_round_slots[match_idx * 2]
+                player2 = current_round_slots[match_idx * 2 + 1]
 
-            matches.append({
-                "round": round_num,
-                "match_number": len(matches) + 1,
-                "player1_id": player1,
-                "player2_id": player2,
-                "bracket_position": f"R{round_num}M{i // 2 + 1}"
-            })
+                # Both byes - skip (shouldn't happen with proper seeding)
+                if player1 is None and player2 is None:
+                    next_round_slots.append(None)
+                    continue
+
+                # One bye - player auto-advances
+                if player1 is None:
+                    next_round_slots.append(player2)
+                    continue
+                if player2 is None:
+                    next_round_slots.append(player1)
+                    continue
+
+                # Both real players - create match
+                # Determine round name
+                if round_num == num_rounds:
+                    round_name = "Final"
+                elif round_num == num_rounds - 1 and num_rounds > 1:
+                    round_name = "Semi-Final"
+                elif round_num == num_rounds - 2 and num_rounds > 2:
+                    round_name = "Quarter-Final"
+                else:
+                    round_name = f"Round {round_num}"
+
+                matches.append({
+                    "round": round_num,
+                    "match_number": match_counter,
+                    "player1_id": player1,
+                    "player2_id": player2,
+                    "bracket_position": f"R{round_num}M{match_idx + 1}",
+                    "round_name": round_name
+                })
+                match_counter += 1
+
+                # Placeholder for winner - will be filled when match completes
+                next_round_slots.append(None)
+
+            current_round_slots = next_round_slots
 
         return matches
 

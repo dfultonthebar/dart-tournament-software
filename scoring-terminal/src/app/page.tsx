@@ -26,10 +26,22 @@ export default function Home() {
 
   return (
     <main className="min-h-screen p-8">
-      <h1 className="text-4xl font-bold mb-8">Select Tournament</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-4xl font-bold">Select Tournament</h1>
+        <Link href="/admin" className="btn-touch btn-secondary px-4 py-2">
+          Admin
+        </Link>
+      </div>
 
       {loading ? (
         <p>Loading...</p>
+      ) : tournaments.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-xl text-gray-400 mb-4">No active tournaments</p>
+          <Link href="/admin/tournaments/new" className="btn-touch btn-primary px-6 py-3">
+            Create Tournament
+          </Link>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {tournaments.map((tournament) => (

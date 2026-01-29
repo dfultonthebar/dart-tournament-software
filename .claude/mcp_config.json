@@ -8,6 +8,15 @@
       ],
       "description": "Browser automation and testing with Playwright MCP server",
       "env": {}
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-puppeteer"
+      ],
+      "description": "Browser automation with Puppeteer MCP server",
+      "env": {}
     }
   }
 }

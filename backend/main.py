@@ -12,6 +12,8 @@ from backend.api import (
     tournaments_router,
     matches_router,
     scoring_router,
+    events_router,
+    dartboards_router,
 )
 from backend.websocket import manager, WebSocketEvents
 
@@ -58,6 +60,8 @@ app.include_router(players_router, prefix="/api")
 app.include_router(tournaments_router, prefix="/api")
 app.include_router(matches_router, prefix="/api")
 app.include_router(scoring_router, prefix="/api")
+app.include_router(events_router, prefix="/api")
+app.include_router(dartboards_router, prefix="/api")
 
 
 @app.get("/")
@@ -73,7 +77,100 @@ async def root():
 @app.get("/health")
 async def health():
     """Health check endpoint."""
-    return {"status": "healthy"}
+    import socket
+    hostname = socket.gethostname()
+    try:
+        # Get all IP addresses for the machine
+        ip_addresses = []
+        for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
+            ip = info[4][0]
+            if ip not in ip_addresses and not ip.startswith('127.'):
+                ip_addresses.append(ip)
+        # Fallback: try to get IP by connecting to external address
+        if not ip_addresses:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip_addresses.append(s.getsockname()[0])
+            s.close()
+    except Exception:
+        ip_addresses = []
+
+    return {
+        "status": "healthy",
+        "hostname": hostname,
+        "ip_addresses": ip_addresses
+    }
+
+
+# In-memory display settings (shared between admin and display terminals)
+_display_settings = {
+    "qr_code_enabled": False,
+}
+
+
+@app.get("/api/display-settings")
+async def get_display_settings():
+    """Get current display terminal settings."""
+    return _display_settings
+
+
+@app.patch("/api/display-settings")
+async def update_display_settings(settings_update: dict):
+    """Update display terminal settings (admin only in practice)."""
+    for key in settings_update:
+        if key in _display_settings:
+            _display_settings[key] = settings_update[key]
+    return _display_settings
+
+
+@app.get("/server-info")
+async def server_info():
+    """
+    Get server information for QR code generation.
+
+    Returns the server's base URL that can be used to generate QR codes
+    for player self-registration.
+    """
+    import socket
+    import os
+
+    hostname = socket.gethostname()
+    port = int(os.environ.get("PORT", 8000))
+
+    # Get the primary IP address
+    primary_ip = None
+    try:
+        # Get all IP addresses for the machine
+        ip_addresses = []
+        for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
+            ip = info[4][0]
+            if ip not in ip_addresses and not ip.startswith('127.'):
+                ip_addresses.append(ip)
+
+        # Fallback: try to get IP by connecting to external address
+        if not ip_addresses:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip_addresses.append(s.getsockname()[0])
+            s.close()
+
+        if ip_addresses:
+            primary_ip = ip_addresses[0]
+    except Exception:
+        ip_addresses = []
+
+    # Build base URLs
+    base_url = f"http://{primary_ip}:{port}" if primary_ip else f"http://localhost:{port}"
+    registration_url = f"{base_url}/api/players/register"
+
+    return {
+        "hostname": hostname,
+        "ip_address": primary_ip,
+        "port": port,
+        "base_url": base_url,
+        "registration_url": registration_url,
+        "api_docs_url": f"{base_url}/docs",
+    }
 
 
 @app.websocket("/ws")
