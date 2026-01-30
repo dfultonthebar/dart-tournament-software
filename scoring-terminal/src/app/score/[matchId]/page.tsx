@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { getApiUrl } from '@shared/lib/api-url'
+import { getErrorMessage } from '@shared/lib/error-message'
 
 interface Player {
   id: string
@@ -88,9 +89,9 @@ export default function ScoreMatchPage() {
         const tournamentData: Tournament = await tournamentResponse.json()
         setTournament(tournamentData)
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error loading match data:', err)
-      setError(err.message || 'Failed to load match data')
+      setError(getErrorMessage(err) || 'Failed to load match data')
     } finally {
       setLoading(false)
     }
@@ -171,9 +172,9 @@ export default function ScoreMatchPage() {
 
       // Redirect back to matches list
       router.push(`/matches?tournament=${match.tournament_id}`)
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error saving match result:', err)
-      setError(err.message || 'Failed to save match result')
+      setError(getErrorMessage(err) || 'Failed to save match result')
       setSaving(false)
       setShowConfirm(false)
     }

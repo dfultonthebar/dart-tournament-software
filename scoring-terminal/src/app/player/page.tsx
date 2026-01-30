@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getApiUrl } from '@shared/lib/api-url'
+import { getErrorMessage } from '@shared/lib/error-message'
 
 export default function PlayerPortal() {
   const router = useRouter()
@@ -48,8 +49,8 @@ export default function PlayerPortal() {
       localStorage.setItem('player_name', loginName)
       setIsLoggedIn(true)
       setPlayerName(loginName)
-    } catch (err: any) {
-      setLoginError(err.message)
+    } catch (err) {
+      setLoginError(getErrorMessage(err))
     } finally {
       setLoading(false)
     }

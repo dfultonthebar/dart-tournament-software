@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { getApiUrl } from '@shared/lib/api-url'
+import { getErrorMessage } from '@shared/lib/error-message'
 
 interface FormData {
   name: string
@@ -157,8 +158,8 @@ function RegisterContent() {
       }
 
       setSuccess(true)
-    } catch (err: any) {
-      setServerError(err.message || 'Registration failed. Please try again.')
+    } catch (err) {
+      setServerError(getErrorMessage(err) || 'Registration failed. Please try again.')
     } finally {
       setLoading(false)
     }

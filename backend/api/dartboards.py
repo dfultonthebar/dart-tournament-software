@@ -200,7 +200,9 @@ async def assign_board_to_match(
     # Release any previously assigned board
     if match.dartboard_id:
         result = await db.execute(
-            select(Dartboard).where(Dartboard.id == match.dartboard_id)
+            select(Dartboard)
+            .where(Dartboard.id == match.dartboard_id)
+            .with_for_update()
         )
         old_dartboard = result.scalar_one_or_none()
         if old_dartboard:

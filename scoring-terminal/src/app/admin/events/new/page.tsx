@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { SportType } from '@shared/types'
 import { getApiUrl } from '@shared/lib/api-url'
 import Breadcrumbs from '@/components/Breadcrumbs'
+import { getErrorMessage } from '@shared/lib/error-message'
 
 function getSportLabel(sport: SportType | undefined): string {
   switch (sport) {
@@ -83,8 +84,8 @@ function NewEventContent() {
 
       const event = await response.json()
       router.push(`/admin/events/${event.id}`)
-    } catch (err: any) {
-      setError(err.message || 'Failed to create event')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to create event')
     } finally {
       setLoading(false)
     }

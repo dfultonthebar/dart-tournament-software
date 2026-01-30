@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown."""
     # Startup
+    if "change-in-production" in settings.SECRET_KEY:
+        logger.warning("Using default SECRET_KEY! Set SECRET_KEY in .env for production.")
     logger.info("Initializing database...")
     await init_db()
     logger.info("Database initialized")

@@ -7,6 +7,7 @@ import { Tournament, Player, TournamentStatus, Team } from '@shared/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { getApiUrl } from '@shared/lib/api-url'
 import Breadcrumbs from '@/components/Breadcrumbs'
+import { getErrorMessage } from '@shared/lib/error-message'
 
 interface TournamentEntry {
   id: string
@@ -111,8 +112,8 @@ export default function LuckyDrawPage() {
       const newTeams = await response.json()
       setTeams(newTeams)
       setSuccess('Teams generated successfully!')
-    } catch (err: any) {
-      setError(err.message || 'Failed to generate teams')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to generate teams')
     } finally {
       setGenerating(false)
     }
@@ -143,8 +144,8 @@ export default function LuckyDrawPage() {
 
       setTeams([])
       setSuccess('Teams cleared. You can now generate new teams.')
-    } catch (err: any) {
-      setError(err.message || 'Failed to clear teams')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to clear teams')
     } finally {
       setGenerating(false)
     }

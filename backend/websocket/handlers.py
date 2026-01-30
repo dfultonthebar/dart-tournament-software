@@ -107,7 +107,7 @@ class WebSocketHandler:
             try:
                 await manager.send_to_player(message, UUID(player_id))
             except ValueError:
-                pass
+                logger.debug(f"Invalid player_id UUID in score event: {player_id}")
 
         logger.info(f"Broadcasted {event_type} for game {game_id}")
 

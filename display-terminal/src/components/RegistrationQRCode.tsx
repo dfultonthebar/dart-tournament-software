@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
+import { getApiUrl } from '@shared/lib/api-url'
 
 interface RegistrationQRCodeProps {
   size?: number
@@ -19,7 +20,8 @@ export default function RegistrationQRCode({ size = 280 }: RegistrationQRCodePro
     async function resolveHost() {
       let host = window.location.hostname
       try {
-        const res = await fetch(`http://${host}:8000/health`)
+        const baseUrl = getApiUrl().replace(/\/api$/, '')
+        const res = await fetch(`${baseUrl}/health`)
         const data = await res.json()
         if (data.ip_addresses && data.ip_addresses.length > 0) {
           host = data.ip_addresses[0]
@@ -28,7 +30,8 @@ export default function RegistrationQRCode({ size = 280 }: RegistrationQRCodePro
         // fall back to window hostname
       }
       setHostname(host)
-      setRegistrationUrl(`http://${host}:3001/register`)
+      const port = window.location.port || '3001'
+      setRegistrationUrl(`http://${host}:${port}/register`)
     }
     resolveHost()
   }, [])
@@ -77,7 +80,7 @@ export default function RegistrationQRCode({ size = 280 }: RegistrationQRCodePro
 
         <div className="qr-url">
           <span className="url-label">Or visit:</span>
-          <span className="url-text">{hostname}:3001/register</span>
+          <span className="url-text">{registrationUrl}</span>
         </div>
       </div>
     </div>

@@ -7,6 +7,7 @@ import { Event, EventEntry, EventStatus, Tournament, Player, SportType } from '@
 import { useAuth } from '@/contexts/AuthContext'
 import { getApiUrl } from '@shared/lib/api-url'
 import Breadcrumbs from '@/components/Breadcrumbs'
+import { getErrorMessage } from '@shared/lib/error-message'
 
 type TabType = 'overview' | 'players' | 'tournaments' | 'dartboards'
 
@@ -96,8 +97,8 @@ export default function EventDetailPage() {
 
       setSelectedPlayer('')
       loadData()
-    } catch (err: any) {
-      setError(err.message || 'Failed to add player')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to add player')
     } finally {
       setActionLoading(false)
     }
@@ -126,8 +127,8 @@ export default function EventDetailPage() {
       }
 
       loadData()
-    } catch (err: any) {
-      setError(err.message || 'Failed to remove player')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to remove player')
     } finally {
       setActionLoading(false)
     }
@@ -155,8 +156,8 @@ export default function EventDetailPage() {
       }
 
       loadData()
-    } catch (err: any) {
-      setError(err.message || 'Failed to update payment status')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to update payment status')
     }
   }
 
@@ -185,8 +186,8 @@ export default function EventDetailPage() {
       }
 
       loadData()
-    } catch (err: any) {
-      setError(err.message || 'Failed to update status')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to update status')
     } finally {
       setActionLoading(false)
     }
@@ -215,8 +216,8 @@ export default function EventDetailPage() {
       }
 
       router.push('/admin/events')
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete event')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to delete event')
       setShowDeleteConfirm(false)
     } finally {
       setActionLoading(false)

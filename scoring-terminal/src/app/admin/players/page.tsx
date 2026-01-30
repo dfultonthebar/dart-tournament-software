@@ -6,6 +6,7 @@ import { Player } from '@shared/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { getApiUrl } from '@shared/lib/api-url'
 import Breadcrumbs from '@/components/Breadcrumbs'
+import { getErrorMessage } from '@shared/lib/error-message'
 
 export default function PlayersPage() {
   const { token, isAuthenticated } = useAuth()
@@ -62,8 +63,8 @@ export default function PlayersPage() {
 
       setDeleteConfirm(null)
       loadPlayers()
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete player')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to delete player')
     }
   }
 
@@ -90,8 +91,8 @@ export default function PlayersPage() {
       setFormData({ name: '', email: '', password: '', phone: '' })
       setShowForm(false)
       loadPlayers()
-    } catch (err: any) {
-      setError(err.message || 'Failed to register player')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to register player')
     } finally {
       setFormLoading(false)
     }

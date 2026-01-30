@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getApiUrl } from '@shared/lib/api-url'
+import { getErrorMessage } from '@shared/lib/error-message'
 
 interface Tournament {
   id: string
@@ -126,8 +127,8 @@ export default function PlayerTournaments() {
 
       const entry = await response.json()
       setMyEntries([...myEntries, entry])
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(getErrorMessage(err))
     } finally {
       setActionLoading(null)
     }
@@ -157,8 +158,8 @@ export default function PlayerTournaments() {
       }
 
       setMyEntries(myEntries.filter(e => e.id !== entry.id))
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(getErrorMessage(err))
     } finally {
       setActionLoading(null)
     }

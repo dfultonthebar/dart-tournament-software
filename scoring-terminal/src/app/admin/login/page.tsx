@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
+import { getErrorMessage } from '@shared/lib/error-message'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -32,8 +33,8 @@ export default function LoginPage() {
         await login(email, credential)
       }
       router.push('/admin')
-    } catch (err: any) {
-      setError(err.message || 'Login failed')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Login failed')
     } finally {
       setLoading(false)
     }

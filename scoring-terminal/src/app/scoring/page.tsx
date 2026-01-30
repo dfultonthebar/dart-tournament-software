@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { api } from '@/lib/api'
 import { MatchWithPlayers, MatchPlayerInfo, Player, Game, MatchStatus } from '@shared/types'
+import { getErrorMessage } from '@shared/lib/error-message'
 
 interface GameState {
   id: string
@@ -62,9 +63,9 @@ function ScoringContent() {
           setCurrentGame(gameState as GameState)
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error loading match:', err)
-      setError(err.message || 'Failed to load match')
+      setError(getErrorMessage(err) || 'Failed to load match')
     } finally {
       setLoading(false)
     }
@@ -78,8 +79,8 @@ function ScoringContent() {
     try {
       await api.startMatch(matchId)
       await loadMatch()
-    } catch (err: any) {
-      setError(err.message || 'Failed to start match')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to start match')
     } finally {
       setSubmitting(false)
     }
@@ -104,8 +105,8 @@ function ScoringContent() {
       })
       setScoreInput('')
       await loadMatch()
-    } catch (err: any) {
-      setError(err.message || 'Failed to submit score')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to submit score')
     } finally {
       setSubmitting(false)
     }

@@ -1,4 +1,5 @@
 import re
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +22,8 @@ from backend.schemas import (
 )
 from backend.services import WAMOGameEngine
 from backend.api.auth import get_current_admin_or_player
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 
@@ -1041,10 +1044,14 @@ async def player_arrive_at_board(
 
     # Check if all players have arrived
     # For doubles (4 players) all 4 must arrive; for singles, 2
-    all_arrived = all(mp.arrived_at_board for mp in match.match_players if mp.player_id)
     is_doubles = any(mp.team_id for mp in match.match_players)
     min_players = 4 if is_doubles else 2
-    if all_arrived and len(match.match_players) >= min_players:
+    players_with_ids = [mp for mp in match.match_players if mp.player_id]
+    all_arrived = (
+        len(players_with_ids) >= min_players
+        and all(mp.arrived_at_board for mp in players_with_ids)
+    )
+    if all_arrived:
         # Auto-start the match
         match.status = MatchStatus.IN_PROGRESS
         match.started_at = datetime.utcnow()
@@ -1260,7 +1267,7 @@ async def report_match_result(
             await notify_match_completed(match_data)
         else:
             await notify_match_updated(match_data)
-    except Exception:
-        pass  # Don't fail the request if WS broadcast fails
+    except Exception as e:
+        logger.warning(f"WebSocket broadcast failed for match {match.id}: {e}")
 
     return match

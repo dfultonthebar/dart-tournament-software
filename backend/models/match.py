@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, ForeignKey, Integer, DateTime, Enum
+from sqlalchemy import Column, String, ForeignKey, Integer, DateTime, Enum, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from backend.models.base import BaseModel
@@ -16,6 +16,11 @@ class MatchStatus(str, enum.Enum):
 
 class Match(BaseModel):
     __tablename__ = "matches"
+    __table_args__ = (
+        Index('ix_matches_tournament_id', 'tournament_id'),
+        Index('ix_matches_status', 'status'),
+        Index('ix_matches_tournament_bracket', 'tournament_id', 'bracket_position'),
+    )
 
     tournament_id = Column(UUID(as_uuid=True), ForeignKey("tournaments.id", ondelete="CASCADE"), nullable=False)
     round_number = Column(Integer, nullable=False)

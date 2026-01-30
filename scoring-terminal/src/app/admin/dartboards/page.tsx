@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { getApiUrl } from '@shared/lib/api-url'
 import Breadcrumbs from '@/components/Breadcrumbs'
+import { getErrorMessage } from '@shared/lib/error-message'
 
 interface Dartboard {
   id: string
@@ -49,8 +50,8 @@ export default function DartboardsPage() {
       if (!response.ok) throw new Error('Failed to load dartboards')
       const data = await response.json()
       setDartboards(data)
-    } catch (err: any) {
-      setError(err.message || 'Failed to load dartboards')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to load dartboards')
     } finally {
       setLoading(false)
     }
@@ -125,8 +126,8 @@ export default function DartboardsPage() {
       setNewBoardName('')
       setSuccess('Dartboard added successfully!')
       loadDartboards()
-    } catch (err: any) {
-      setError(err.message || 'Failed to create dartboard')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to create dartboard')
     } finally {
       setFormLoading(false)
     }
@@ -154,8 +155,8 @@ export default function DartboardsPage() {
       setDeleteConfirm(null)
       setSuccess('Dartboard deleted successfully!')
       loadDartboards()
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete dartboard')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to delete dartboard')
     }
   }
 

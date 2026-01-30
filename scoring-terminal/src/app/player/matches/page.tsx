@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getApiUrl } from '@shared/lib/api-url'
+import { getErrorMessage } from '@shared/lib/error-message'
 
 interface MatchPlayer {
   player_id: string
@@ -193,8 +194,8 @@ export default function PlayerMatches() {
       setSuccessMsg('Marked as arrived! Waiting for your opponent...')
       // Reload data
       loadData(token, playerId)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(getErrorMessage(err))
     } finally {
       setActionLoading(null)
     }
@@ -224,8 +225,8 @@ export default function PlayerMatches() {
 
       setSuccessMsg('Result reported! Waiting for your opponent to confirm...')
       loadData(token, playerId)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(getErrorMessage(err))
     } finally {
       setActionLoading(null)
     }

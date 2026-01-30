@@ -115,10 +115,16 @@ export default function BracketPage() {
         fetch(`${getApiUrl()}/tournaments/${tournamentId}/teams`),
       ])
 
+      if (!tournamentRes.ok || !matchesRes.ok || !playersRes.ok) {
+        console.error('Failed to load bracket data')
+        setLoading(false)
+        return
+      }
+
       const tournamentData = await tournamentRes.json()
       const matchesData = await matchesRes.json()
       const playersData = await playersRes.json()
-      const dartboardsData = await dartboardsRes.json()
+      const dartboardsData = dartboardsRes.ok ? await dartboardsRes.json() : []
       const teamsData = teamsRes.ok ? await teamsRes.json() : []
 
       setTournament(tournamentData)

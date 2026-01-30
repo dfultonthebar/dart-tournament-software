@@ -7,6 +7,7 @@ import { Tournament, Player, TournamentStatus, TournamentFormat, Team, Event } f
 import { useAuth } from '@/contexts/AuthContext'
 import { getApiUrl } from '@shared/lib/api-url'
 import Breadcrumbs, { BreadcrumbItem } from '@/components/Breadcrumbs'
+import { getErrorMessage } from '@shared/lib/error-message'
 
 interface TournamentEntry {
   id: string
@@ -151,8 +152,8 @@ export default function TournamentDetailPage() {
       if (added < playerIds.length) {
         setError(`Added ${added} of ${playerIds.length} players. Some may have already been added.`)
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to add players')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to add players')
     } finally {
       setBulkAdding(false)
     }
@@ -179,8 +180,8 @@ export default function TournamentDetailPage() {
         })
       }
       loadData()
-    } catch (err: any) {
-      setError(err.message || 'Failed to update payment status')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to update payment status')
     } finally {
       setBulkPaying(false)
     }
@@ -207,8 +208,8 @@ export default function TournamentDetailPage() {
         })
       }
       loadData()
-    } catch (err: any) {
-      setError(err.message || 'Failed to update payment status')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to update payment status')
     } finally {
       setBulkPaying(false)
     }
@@ -236,8 +237,8 @@ export default function TournamentDetailPage() {
       }
 
       loadData()
-    } catch (err: any) {
-      setError(err.message || 'Failed to update payment status')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to update payment status')
     }
   }
 
@@ -285,8 +286,8 @@ export default function TournamentDetailPage() {
       }
 
       loadData()
-    } catch (err: any) {
-      setError(err.message || 'Failed to start tournament')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to start tournament')
     } finally {
       setActionLoading(false)
     }
@@ -317,8 +318,8 @@ export default function TournamentDetailPage() {
       }
 
       loadData()
-    } catch (err: any) {
-      setError(err.message || 'Failed to update status')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to update status')
     } finally {
       setActionLoading(false)
     }
@@ -347,8 +348,8 @@ export default function TournamentDetailPage() {
       }
 
       router.push(event ? `/admin/events/${event.id}` : '/admin/tournaments')
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete tournament')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to delete tournament')
       setShowDeleteConfirm(false)
     } finally {
       setActionLoading(false)

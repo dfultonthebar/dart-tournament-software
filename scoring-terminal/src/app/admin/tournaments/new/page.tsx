@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Event, Player, SportType } from '@shared/types'
 import { getApiUrl } from '@shared/lib/api-url'
 import Breadcrumbs, { BreadcrumbItem } from '@/components/Breadcrumbs'
+import { getErrorMessage } from '@shared/lib/error-message'
 
 const GAME_TYPES = [
   { value: '501', label: '501' },
@@ -255,8 +256,8 @@ function NewTournamentWizard() {
       }
 
       router.push(`/admin/tournaments/${tournament.id}`)
-    } catch (err: any) {
-      setError(err.message || 'Failed to create tournament')
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to create tournament')
     } finally {
       setLoading(false)
     }

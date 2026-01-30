@@ -7,6 +7,7 @@ import { Event, EventStatus, SportType } from '@shared/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { getApiUrl } from '@shared/lib/api-url'
 import Breadcrumbs from '@/components/Breadcrumbs'
+import { getErrorMessage } from '@shared/lib/error-message'
 
 function getStatusColor(status: EventStatus): string {
   switch (status) {
@@ -100,8 +101,8 @@ function EventsListContent() {
 
       // Clear success message after 5 seconds
       setTimeout(() => setArchiveMessage(''), 5000)
-    } catch (err: any) {
-      setArchiveMessage(`Error: ${err.message || 'Failed to archive events'}`)
+    } catch (err) {
+      setArchiveMessage(`Error: ${getErrorMessage(err) || 'Failed to archive events'}`)
       setShowArchiveConfirm(false)
       setTimeout(() => setArchiveMessage(''), 5000)
     } finally {

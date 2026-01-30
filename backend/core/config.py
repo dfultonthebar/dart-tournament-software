@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
     # CORS
-    CORS_ORIGINS: List[str] = ["*"]
+    CORS_ORIGINS: List[str] = ["http://localhost:3001", "http://localhost:3002", "http://localhost:3003"]
 
     # WebSocket
     WS_HEARTBEAT_INTERVAL: int = 30  # seconds
