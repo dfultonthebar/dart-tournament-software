@@ -9,7 +9,8 @@ from uuid import UUID
 from datetime import datetime
 
 from backend.core import get_db
-from backend.models import Match, MatchPlayer, Player, Game, Tournament, MatchStatus, GameStatus, Dartboard, Admin, Team
+from backend.models import Match, MatchPlayer, Player, Game, Tournament, MatchStatus, GameStatus, Dartboard, Admin, Team, TournamentStatus
+from backend.websocket.handlers import notify_match_completed, notify_match_updated
 from backend.schemas import (
     MatchResponse,
     MatchWithPlayers,
@@ -197,6 +198,25 @@ async def update_match(
         raise HTTPException(status_code=404, detail="Match not found")
 
     update_data = match_update.model_dump(exclude_unset=True)
+
+    # Validate winner_id is one of the match players
+    if "winner_id" in update_data and update_data["winner_id"] is not None:
+        valid_player_ids = [mp.player_id for mp in match.match_players]
+        if update_data["winner_id"] not in valid_player_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="winner_id must be one of the match players"
+            )
+
+    # Validate winner_team_id is one of the match teams
+    if "winner_team_id" in update_data and update_data["winner_team_id"] is not None:
+        valid_team_ids = set(mp.team_id for mp in match.match_players if mp.team_id)
+        if update_data["winner_team_id"] not in valid_team_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="winner_team_id must be one of the teams in this match"
+            )
+
     for field, value in update_data.items():
         setattr(match, field, value)
 
@@ -256,11 +276,13 @@ async def _advance_winner_in_bracket(match: Match, db: AsyncSession):
             Match.tournament_id == match.tournament_id,
             Match.bracket_position == next_bracket_position
         )
+        .with_for_update()
     )
     next_match = result.scalar_one_or_none()
 
     if not next_match:
-        # No next match - this was the final
+        # No next match - this was the final. Auto-complete the tournament.
+        await _auto_complete_tournament(match.tournament_id, db)
         return
 
     # Check if winner is already in the next match
@@ -367,6 +389,17 @@ async def _check_next_match_cascade(match: Match, db: AsyncSession):
         await _check_bye_cascade(next_match, db)
 
 
+async def _auto_complete_tournament(tournament_id, db: AsyncSession):
+    """Auto-complete a tournament when its final match is done."""
+    result = await db.execute(
+        select(Tournament).where(Tournament.id == tournament_id)
+    )
+    tournament = result.scalar_one_or_none()
+    if tournament and tournament.status == TournamentStatus.IN_PROGRESS:
+        tournament.status = TournamentStatus.COMPLETED
+        await db.flush()
+
+
 async def _advance_team_in_bracket(match: Match, db: AsyncSession):
     """
     Advance the winning team of a doubles match to the next round.
@@ -390,11 +423,14 @@ async def _advance_team_in_bracket(match: Match, db: AsyncSession):
             Match.tournament_id == match.tournament_id,
             Match.bracket_position == next_bracket_position
         )
+        .with_for_update()
     )
     next_match = result.scalar_one_or_none()
 
     if not next_match:
-        return  # Final match, no next round
+        # Final match completed. Auto-complete the tournament.
+        await _auto_complete_tournament(match.tournament_id, db)
+        return
 
     # Check if this team is already in the next match
     existing_team_ids = set(mp.team_id for mp in next_match.match_players if mp.team_id)
@@ -669,6 +705,7 @@ async def report_match_result(
         select(Match)
         .options(selectinload(Match.match_players))
         .where(Match.id == match_id)
+        .with_for_update()
     )
     match = result.scalar_one_or_none()
 
@@ -818,5 +855,15 @@ async def report_match_result(
 
     await db.flush()
     await db.refresh(match)
+
+    # Broadcast WebSocket notification
+    try:
+        match_data = {"id": str(match.id), "tournament_id": str(match.tournament_id), "status": match.status.value}
+        if match.status == MatchStatus.COMPLETED:
+            await notify_match_completed(match_data)
+        else:
+            await notify_match_updated(match_data)
+    except Exception:
+        pass  # Don't fail the request if WS broadcast fails
 
     return match

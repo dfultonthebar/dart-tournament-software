@@ -8,7 +8,6 @@ from backend.core import get_db
 from backend.api.auth import get_current_admin_or_player
 from backend.models import Player, Admin
 from backend.schemas import PlayerResponse, PlayerUpdate, PlayerSelfRegister
-from sqlalchemy import or_
 
 router = APIRouter(prefix="/players", tags=["players"])
 
@@ -24,28 +23,25 @@ async def self_register(
     No authentication required. Players can register themselves with name, email, and phone.
     The system will assign a PIN for quick login later.
     """
-    # Check for duplicate email or phone
+    # Check for duplicate email
     result = await db.execute(
-        select(Player).where(
-            or_(
-                Player.email == request.email,
-                Player.phone == request.phone
-            )
-        )
+        select(Player).where(Player.email == request.email)
     )
-    existing_player = result.scalar_one_or_none()
+    if result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
 
-    if existing_player:
-        if existing_player.email == request.email:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
-            )
-        if existing_player.phone == request.phone:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Phone number already registered"
-            )
+    # Check for duplicate phone
+    result = await db.execute(
+        select(Player).where(Player.phone == request.phone)
+    )
+    if result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Phone number already registered"
+        )
 
     # Create new player (no password, PIN can be set later)
     new_player = Player(
@@ -113,6 +109,29 @@ async def update_player(
         raise HTTPException(status_code=404, detail="Player not found")
 
     update_data = player_update.model_dump(exclude_unset=True)
+
+    # Check for duplicate email if being updated
+    if "email" in update_data and update_data["email"] != player.email:
+        result = await db.execute(
+            select(Player).where(Player.email == update_data["email"])
+        )
+        if result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+
+    # Check for duplicate phone if being updated
+    if "phone" in update_data and update_data["phone"] != player.phone:
+        result = await db.execute(
+            select(Player).where(Player.phone == update_data["phone"])
+        )
+        if result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Phone number already registered"
+            )
+
     for field, value in update_data.items():
         setattr(player, field, value)
 
@@ -145,6 +164,6 @@ async def delete_player(
 
     # Hard delete - remove from database (NO await on delete)
     db.delete(player)
-    await db.commit()
+    await db.flush()
 
     return None

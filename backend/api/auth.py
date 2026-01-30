@@ -152,16 +152,23 @@ async def register(
     """Register a new player."""
     # Check if email already exists
     result = await db.execute(select(Player).where(Player.email == request.email))
-    existing_player = result.scalar_one_or_none()
-
-    if existing_player:
+    if result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
         )
 
+    # Check if phone already exists
+    if request.phone:
+        result = await db.execute(select(Player).where(Player.phone == request.phone))
+        if result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Phone number already registered"
+            )
+
     # Create new player
-    hashed_password = get_password_hash(request.password)
+    hashed_password = await get_password_hash(request.password)
     new_player = Player(
         name=request.name,
         email=request.email,
@@ -233,7 +240,7 @@ async def login(
     result = await db.execute(select(Player).where(Player.email == request.email))
     player = result.scalar_one_or_none()
 
-    if not player or not verify_password(request.password, player.hashed_password):
+    if not player or not await verify_password(request.password, player.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -353,7 +360,7 @@ async def token(
     result = await db.execute(select(Player).where(Player.email == form_data.username))
     player = result.scalar_one_or_none()
 
-    if not player or not verify_password(form_data.password, player.hashed_password):
+    if not player or not await verify_password(form_data.password, player.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -384,13 +391,13 @@ async def change_password(
     db: AsyncSession = Depends(get_db)
 ):
     """Change player password."""
-    if not verify_password(request.current_password, current_player.hashed_password):
+    if not await verify_password(request.current_password, current_player.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect current password"
         )
 
-    current_player.hashed_password = get_password_hash(request.new_password)
+    current_player.hashed_password = await get_password_hash(request.new_password)
     await db.flush()
 
     return {"message": "Password updated successfully"}
@@ -439,7 +446,7 @@ async def create_admin(
 
     hashed_password = None
     if admin_data.password:
-        hashed_password = get_password_hash(admin_data.password)
+        hashed_password = await get_password_hash(admin_data.password)
 
     new_admin = Admin(
         name=admin_data.name,
