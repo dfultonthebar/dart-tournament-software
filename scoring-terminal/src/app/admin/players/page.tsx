@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Player } from '@shared/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { getApiUrl } from '@shared/lib/api-url'
+import Breadcrumbs from '@/components/Breadcrumbs'
 
 export default function PlayersPage() {
   const { token, isAuthenticated } = useAuth()
@@ -124,14 +125,14 @@ export default function PlayersPage() {
   }
 
   return (
-    <main className="min-h-screen p-8">
+    <main className="min-h-screen p-6 lg:p-8">
+      <Breadcrumbs items={[
+        { label: 'Dashboard', href: '/admin/darts' },
+        { label: 'Players' },
+      ]} />
+
       <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <Link href="/admin" className="btn-touch btn-secondary px-4 py-2">
-            &larr; Back
-          </Link>
-          <h1 className="text-4xl font-bold">Players</h1>
-        </div>
+        <h1 className="text-3xl font-bold">Players</h1>
         <div className="flex gap-3">
           <button
             onClick={exportToCSV}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { api } from '@/lib/api'
@@ -17,7 +17,7 @@ interface GameState {
   }
 }
 
-export default function ScoringPage() {
+function ScoringContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const matchId = searchParams.get('match')
@@ -382,5 +382,13 @@ export default function ScoringPage() {
         </div>
       )}
     </main>
+  )
+}
+
+export default function ScoringPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen p-8"><p>Loading scoring...</p></main>}>
+      <ScoringContent />
+    </Suspense>
   )
 }

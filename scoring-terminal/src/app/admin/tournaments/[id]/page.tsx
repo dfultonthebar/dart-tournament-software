@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Tournament, Player, TournamentStatus, TournamentFormat, Team, Event } from '@shared/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { getApiUrl } from '@shared/lib/api-url'
+import Breadcrumbs, { BreadcrumbItem } from '@/components/Breadcrumbs'
 
 interface TournamentEntry {
   id: string
@@ -31,8 +32,13 @@ export default function TournamentDetailPage() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [error, setError] = useState('')
-  const [selectedPlayer, setSelectedPlayer] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  // Bulk player add state
+  const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set())
+  const [playerSearch, setPlayerSearch] = useState('')
+  const [bulkAdding, setBulkAdding] = useState(false)
+  const [bulkPaying, setBulkPaying] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -80,7 +86,6 @@ export default function TournamentDetailPage() {
 
   function getAvailablePlayers(): Player[] {
     const enteredPlayerIds = entries.map(e => e.player_id)
-    // Filter out admin accounts and already entered players
     return allPlayers.filter(p =>
       !enteredPlayerIds.includes(p.id) &&
       p.is_active &&
@@ -88,36 +93,124 @@ export default function TournamentDetailPage() {
     )
   }
 
-  async function addPlayer() {
-    if (!selectedPlayer || !token) {
-      if (!token) setError('Please login to add players')
-      return
-    }
+  function getFilteredAvailablePlayers(): Player[] {
+    const available = getAvailablePlayers()
+    if (!playerSearch.trim()) return available
+    const search = playerSearch.toLowerCase()
+    return available.filter(p =>
+      p.name.toLowerCase().includes(search) ||
+      p.email?.toLowerCase().includes(search)
+    )
+  }
 
-    setActionLoading(true)
+  function togglePlayerSelection(playerId: string) {
+    setSelectedPlayers(prev => {
+      const next = new Set(prev)
+      if (next.has(playerId)) {
+        next.delete(playerId)
+      } else {
+        next.add(playerId)
+      }
+      return next
+    })
+  }
+
+  function selectAllFiltered() {
+    const filtered = getFilteredAvailablePlayers()
+    setSelectedPlayers(new Set(filtered.map(p => p.id)))
+  }
+
+  function deselectAll() {
+    setSelectedPlayers(new Set())
+  }
+
+  async function addSelectedPlayers() {
+    if (selectedPlayers.size === 0 || !token) return
+
+    setBulkAdding(true)
     setError('')
 
     try {
-      // Use the new endpoint that accepts player_id
-      const response = await fetch(`${getApiUrl()}/tournaments/${tournamentId}/entries/${selectedPlayer}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.detail || 'Failed to add player')
+      const playerIds = Array.from(selectedPlayers)
+      let added = 0
+      for (const playerId of playerIds) {
+        const response = await fetch(`${getApiUrl()}/tournaments/${tournamentId}/entries/${playerId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+        })
+        if (response.ok) added++
       }
 
-      setSelectedPlayer('')
+      setSelectedPlayers(new Set())
+      setPlayerSearch('')
+      loadData()
+
+      if (added < playerIds.length) {
+        setError(`Added ${added} of ${playerIds.length} players. Some may have already been added.`)
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to add players')
+    } finally {
+      setBulkAdding(false)
+    }
+  }
+
+  async function markAllPaid() {
+    if (!token) return
+
+    const unpaidEntries = entries.filter(e => !e.paid)
+    if (unpaidEntries.length === 0) return
+
+    setBulkPaying(true)
+    setError('')
+
+    try {
+      for (const entry of unpaidEntries) {
+        await fetch(`${getApiUrl()}/tournaments/${tournamentId}/entries/${entry.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ paid: true }),
+        })
+      }
       loadData()
     } catch (err: any) {
-      setError(err.message || 'Failed to add player')
+      setError(err.message || 'Failed to update payment status')
     } finally {
-      setActionLoading(false)
+      setBulkPaying(false)
+    }
+  }
+
+  async function markAllUnpaid() {
+    if (!token) return
+
+    const paidEntries = entries.filter(e => e.paid)
+    if (paidEntries.length === 0) return
+
+    setBulkPaying(true)
+    setError('')
+
+    try {
+      for (const entry of paidEntries) {
+        await fetch(`${getApiUrl()}/tournaments/${tournamentId}/entries/${entry.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ paid: false }),
+        })
+      }
+      loadData()
+    } catch (err: any) {
+      setError(err.message || 'Failed to update payment status')
+    } finally {
+      setBulkPaying(false)
     }
   }
 
@@ -253,7 +346,6 @@ export default function TournamentDetailPage() {
         throw new Error(data.detail || 'Failed to delete tournament')
       }
 
-      // Navigate back to event if we have one, otherwise to tournaments list
       router.push(event ? `/admin/events/${event.id}` : '/admin/tournaments')
     } catch (err: any) {
       setError(err.message || 'Failed to delete tournament')
@@ -275,8 +367,8 @@ export default function TournamentDetailPage() {
     return (
       <main className="min-h-screen p-8">
         <p>Tournament not found</p>
-        <Link href="/admin" className="btn-touch btn-secondary mt-4">
-          Back to Admin
+        <Link href="/admin/tournaments" className="btn-touch btn-secondary mt-4">
+          Back to Tournaments
         </Link>
       </main>
     )
@@ -312,44 +404,52 @@ export default function TournamentDetailPage() {
   }
 
   const availablePlayers = getAvailablePlayers()
+  const filteredPlayers = getFilteredAvailablePlayers()
   const paidCount = entries.filter(e => e.paid).length
   const allPaid = paidCount === entries.length && entries.length > 0
   const canStart = tournament.status === TournamentStatus.REGISTRATION && entries.length >= 2 && allPaid
   const canAddPlayers = tournament.status === TournamentStatus.DRAFT || tournament.status === TournamentStatus.REGISTRATION
   const isLuckyDraw = tournament.format === TournamentFormat.LUCKY_DRAW_DOUBLES
 
-  const backUrl = event ? `/admin/events/${event.id}` : '/admin/tournaments'
+  // Build breadcrumbs
+  const breadcrumbs: BreadcrumbItem[] = [
+    { label: 'Dashboard', href: '/admin/darts' },
+  ]
+  if (event) {
+    breadcrumbs.push({ label: 'Events', href: '/admin/events' })
+    breadcrumbs.push({ label: event.name, href: `/admin/events/${event.id}` })
+  } else {
+    breadcrumbs.push({ label: 'Tournaments', href: '/admin/tournaments' })
+  }
+  breadcrumbs.push({ label: tournament.name })
 
   return (
-    <main className="min-h-screen p-8">
-      <div className="flex items-center gap-4 mb-8">
-        <Link href={backUrl} className="btn-touch btn-secondary px-4 py-2">
-          &larr; Back
-        </Link>
-        <div>
-          <h1 className="text-4xl font-bold">{tournament.name}</h1>
-          <div className="flex items-center gap-4 mt-2 flex-wrap">
-            {event && (
-              <>
-                <Link href={`/admin/events/${event.id}`} className="text-blue-400 hover:underline">
-                  {event.name}
-                </Link>
-                <span className="text-gray-400">|</span>
-              </>
-            )}
-            <span className="text-gray-400">{tournament.game_type.toUpperCase()}</span>
-            <span className="text-gray-400">|</span>
-            <span className="text-gray-400">{tournament.format === 'lucky_draw_doubles' ? 'Lucky Draw Doubles' : tournament.format.replace('_', ' ')}</span>
-            <span className="text-gray-400">|</span>
-            <span className={`px-2 py-1 rounded text-xs ${
-              tournament.status === TournamentStatus.IN_PROGRESS ? 'bg-green-600' :
-              tournament.status === TournamentStatus.REGISTRATION ? 'bg-blue-600' :
-              tournament.status === TournamentStatus.DRAFT ? 'bg-yellow-600' :
-              'bg-gray-600'
-            }`}>
-              {tournament.status.toUpperCase()}
-            </span>
-          </div>
+    <main className="min-h-screen p-6 lg:p-8">
+      <Breadcrumbs items={breadcrumbs} />
+
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">{tournament.name}</h1>
+        <div className="flex items-center gap-4 mt-2 flex-wrap">
+          {event && (
+            <>
+              <Link href={`/admin/events/${event.id}`} className="text-blue-400 hover:underline">
+                {event.name}
+              </Link>
+              <span className="text-gray-400">|</span>
+            </>
+          )}
+          <span className="text-gray-400">{tournament.game_type.toUpperCase()}</span>
+          <span className="text-gray-400">|</span>
+          <span className="text-gray-400">{tournament.format === 'lucky_draw_doubles' ? 'Lucky Draw Doubles' : tournament.format.replace(/_/g, ' ')}</span>
+          <span className="text-gray-400">|</span>
+          <span className={`px-2 py-1 rounded text-xs ${
+            tournament.status === TournamentStatus.IN_PROGRESS ? 'bg-green-600' :
+            tournament.status === TournamentStatus.REGISTRATION ? 'bg-blue-600' :
+            tournament.status === TournamentStatus.DRAFT ? 'bg-yellow-600' :
+            'bg-gray-600'
+          }`}>
+            {tournament.status.toUpperCase()}
+          </span>
         </div>
       </div>
 
@@ -362,12 +462,13 @@ export default function TournamentDetailPage() {
       {error && (
         <div className="bg-red-600 text-white p-4 rounded-lg mb-6">
           {error}
+          <button onClick={() => setError('')} className="ml-4 underline text-sm">Dismiss</button>
         </div>
       )}
 
       {/* Lucky Draw Teams Section */}
       {isLuckyDraw && (
-        <div className="bg-gray-800 rounded-lg p-6 mb-8">
+        <div className="bg-gray-800 rounded-lg p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-bold">Lucky Draw Teams ({teams.length})</h2>
             {canAddPlayers && isAuthenticated && (
@@ -387,7 +488,7 @@ export default function TournamentDetailPage() {
                   <div className="text-sm text-blue-400 font-medium mb-1">Team {index + 1}</div>
                   <div className="text-lg">
                     {team.player1_name || getPlayerName(team.player1_id)}
-                    <span className="text-gray-400 mx-2">&</span>
+                    <span className="text-gray-400 mx-2">&amp;</span>
                     {team.player2_name || getPlayerName(team.player2_id)}
                   </div>
                 </div>
@@ -414,48 +515,51 @@ export default function TournamentDetailPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Players Section */}
         <div className="bg-gray-800 rounded-lg p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-bold">
               Players ({entries.length}{tournament.max_players ? `/${tournament.max_players}` : ''})
             </h2>
-            {entries.length > 0 && (
-              <button
-                onClick={exportParticipantsToCSV}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded text-sm"
-              >
-                Export CSV
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {entries.length > 0 && (
+                <button
+                  onClick={exportParticipantsToCSV}
+                  className="px-3 py-2 bg-green-600 hover:bg-green-700 rounded text-sm"
+                >
+                  Export CSV
+                </button>
+              )}
+            </div>
           </div>
 
-          {canAddPlayers && isAuthenticated && availablePlayers.length > 0 && (
-            <div className="flex gap-2 mb-4">
-              <select
-                value={selectedPlayer}
-                onChange={(e) => setSelectedPlayer(e.target.value)}
-                className="flex-1 p-3 bg-gray-700 rounded-lg border border-gray-600"
-              >
-                <option value="">Select a player...</option>
-                {availablePlayers.map((player) => (
-                  <option key={player.id} value={player.id}>
-                    {player.name}
-                  </option>
-                ))}
-              </select>
+          {/* Bulk Paid Controls */}
+          {canAddPlayers && isAuthenticated && entries.length > 0 && (
+            <div className="flex items-center gap-2 mb-4 p-3 bg-gray-700 rounded-lg">
+              <span className="text-sm text-gray-300">
+                {paidCount}/{entries.length} paid
+              </span>
+              <div className="flex-1" />
               <button
-                onClick={addPlayer}
-                disabled={!selectedPlayer || actionLoading}
-                className="btn-touch btn-primary px-4 disabled:opacity-50"
+                onClick={markAllPaid}
+                disabled={bulkPaying || allPaid}
+                className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm disabled:opacity-50"
               >
-                Add
+                {bulkPaying ? 'Updating...' : 'Mark All Paid'}
+              </button>
+              <button
+                onClick={markAllUnpaid}
+                disabled={bulkPaying || paidCount === 0}
+                className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-sm disabled:opacity-50"
+              >
+                Mark All Unpaid
               </button>
             </div>
           )}
 
-          <div className="space-y-2">
+          {/* Player list */}
+          <div className="space-y-2 mb-4">
             {entries.map((entry, index) => (
               <div key={entry.id} className="flex items-center justify-between p-3 bg-gray-700 rounded">
                 <div className="flex items-center gap-3">
@@ -466,7 +570,7 @@ export default function TournamentDetailPage() {
                   {entry.seed && (
                     <span className="text-sm text-gray-400">Seed: {entry.seed}</span>
                   )}
-                  {canAddPlayers && isAuthenticated && (
+                  {canAddPlayers && isAuthenticated ? (
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
@@ -478,8 +582,7 @@ export default function TournamentDetailPage() {
                         {entry.paid ? 'Paid' : 'Unpaid'}
                       </span>
                     </label>
-                  )}
-                  {!canAddPlayers && (
+                  ) : (
                     <span className={`text-sm ${entry.paid ? 'text-green-400' : 'text-red-400'}`}>
                       {entry.paid ? 'Paid' : 'Unpaid'}
                     </span>
@@ -492,6 +595,82 @@ export default function TournamentDetailPage() {
               <p className="text-gray-400 text-center py-4">No players added yet</p>
             )}
           </div>
+
+          {/* Bulk Player Add Section */}
+          {canAddPlayers && isAuthenticated && availablePlayers.length > 0 && (
+            <div className="border-t border-gray-700 pt-4">
+              <h3 className="text-lg font-medium mb-3">Add Players</h3>
+
+              {/* Search */}
+              <input
+                type="text"
+                value={playerSearch}
+                onChange={(e) => setPlayerSearch(e.target.value)}
+                placeholder="Search players by name or email..."
+                className="w-full p-3 bg-gray-700 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none mb-3"
+              />
+
+              {/* Select All / Deselect All */}
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-gray-400">
+                  {selectedPlayers.size} selected of {filteredPlayers.length} available
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={selectAllFiltered}
+                    className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-sm"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    onClick={deselectAll}
+                    disabled={selectedPlayers.size === 0}
+                    className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-sm disabled:opacity-50"
+                  >
+                    Deselect All
+                  </button>
+                </div>
+              </div>
+
+              {/* Player checkboxes */}
+              <div className="max-h-64 overflow-y-auto space-y-1 mb-3 border border-gray-700 rounded-lg p-2">
+                {filteredPlayers.map((player) => (
+                  <label
+                    key={player.id}
+                    className="flex items-center gap-3 p-2 rounded hover:bg-gray-700 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedPlayers.has(player.id)}
+                      onChange={() => togglePlayerSelection(player.id)}
+                      className="w-5 h-5 accent-blue-500"
+                    />
+                    <span className="flex-1">{player.name}</span>
+                    {player.email && (
+                      <span className="text-sm text-gray-500">{player.email}</span>
+                    )}
+                  </label>
+                ))}
+                {filteredPlayers.length === 0 && (
+                  <p className="text-gray-500 text-center py-3 text-sm">
+                    {playerSearch ? 'No matching players found' : 'No available players'}
+                  </p>
+                )}
+              </div>
+
+              {/* Add Selected button */}
+              <button
+                onClick={addSelectedPlayers}
+                disabled={selectedPlayers.size === 0 || bulkAdding}
+                className="btn-touch btn-primary w-full py-3 font-bold disabled:opacity-50"
+              >
+                {bulkAdding
+                  ? 'Adding Players...'
+                  : `Add ${selectedPlayers.size} Selected Player${selectedPlayers.size !== 1 ? 's' : ''}`
+                }
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Actions Section */}
@@ -531,7 +710,7 @@ export default function TournamentDetailPage() {
             {tournament.status === TournamentStatus.IN_PROGRESS && (
               <Link
                 href={`/matches?tournament=${tournament.id}`}
-                className="btn-touch block w-full py-4 bg-green-600 hover:bg-green-700 rounded-lg font-bold text-center"
+                className="btn-touch block w-full py-4 bg-green-600 hover:bg-green-700 rounded-lg font-bold text-center no-underline text-white"
               >
                 Go to Scoring
               </Link>

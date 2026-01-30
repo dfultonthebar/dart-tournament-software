@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Event, EventEntry, EventStatus, Tournament, Player, SportType } from '@shared/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { getApiUrl } from '@shared/lib/api-url'
+import Breadcrumbs from '@/components/Breadcrumbs'
 
 type TabType = 'overview' | 'players' | 'tournaments' | 'dartboards'
 
@@ -316,16 +317,19 @@ export default function EventDetailPage() {
   const isDarts = event.sport_type === SportType.DARTS
 
   return (
-    <main className="min-h-screen p-8">
+    <main className="min-h-screen p-6 lg:p-8">
+      <Breadcrumbs items={[
+        { label: 'Dashboard', href: '/admin/darts' },
+        { label: 'Events', href: `/admin/events?sport=${event.sport_type}` },
+        { label: event.name },
+      ]} />
+
       {/* Header Section */}
       <div className="flex items-center gap-4 mb-6">
-        <Link href={`/admin/events?sport=${event.sport_type}`} className="btn-touch btn-secondary px-4 py-2">
-          &larr; Back
-        </Link>
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
             <span className="text-3xl">{getSportIcon(event.sport_type)}</span>
-            <h1 className="text-4xl font-bold">{event.name}</h1>
+            <h1 className="text-3xl font-bold">{event.name}</h1>
             <span className={`px-3 py-1 rounded text-sm ${getStatusColor(event.status)}`}>
               {event.status.toUpperCase()}
             </span>

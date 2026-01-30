@@ -179,7 +179,7 @@ export default function PlayerPortal() {
             <h2 className="text-xl font-semibold mb-4">New Player Registration</h2>
             <p className="text-gray-400 mb-4">Create your account to sign up for tournaments.</p>
             <Link
-              href="/player/register"
+              href="/register?mode=player"
               className="block w-full py-4 bg-green-600 hover:bg-green-700 rounded-lg font-bold text-lg text-center transition"
             >
               Register Now

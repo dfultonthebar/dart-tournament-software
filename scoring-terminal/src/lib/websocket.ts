@@ -136,6 +136,15 @@ class WebSocketClient {
       this.ws.send(JSON.stringify(message));
     }
   }
+
+  startPing() {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+    }
+    this.pingInterval = setInterval(() => {
+      this.ping();
+    }, 30000);
+  }
 }
 
 export const wsClient = new WebSocketClient();
@@ -143,9 +152,5 @@ export const wsClient = new WebSocketClient();
 // Auto-connect when module loads (browser only)
 if (typeof window !== 'undefined') {
   wsClient.connect();
-
-  // Ping every 30 seconds to keep connection alive
-  wsClient.pingInterval = setInterval(() => {
-    wsClient.ping();
-  }, 30000);
+  wsClient.startPing();
 }

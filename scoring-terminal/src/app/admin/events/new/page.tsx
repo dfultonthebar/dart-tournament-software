@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { SportType } from '@shared/types'
 import { getApiUrl } from '@shared/lib/api-url'
+import Breadcrumbs from '@/components/Breadcrumbs'
 
 function getSportLabel(sport: SportType | undefined): string {
   switch (sport) {
@@ -102,15 +103,16 @@ function NewEventContent() {
   const backUrl = sportParam ? `/admin/events?sport=${sportParam}` : '/admin/events'
 
   return (
-    <main className="min-h-screen p-8">
-      <div className="flex items-center gap-4 mb-8">
-        <Link href={backUrl} className="btn-touch btn-secondary px-4 py-2">
-          &larr; Back
-        </Link>
-        <div className="flex items-center gap-3">
-          {sportIcon && <span className="text-3xl">{sportIcon}</span>}
-          <h1 className="text-4xl font-bold">Create {sportLabel} Event</h1>
-        </div>
+    <main className="min-h-screen p-6 lg:p-8">
+      <Breadcrumbs items={[
+        { label: 'Dashboard', href: '/admin/darts' },
+        { label: 'Events', href: backUrl },
+        { label: `New ${sportLabel} Event` },
+      ]} />
+
+      <div className="flex items-center gap-3 mb-8">
+        {sportIcon && <span className="text-3xl">{sportIcon}</span>}
+        <h1 className="text-3xl font-bold">Create {sportLabel} Event</h1>
       </div>
 
       {error && (

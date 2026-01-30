@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Event, EventStatus, SportType } from '@shared/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { getApiUrl } from '@shared/lib/api-url'
+import Breadcrumbs from '@/components/Breadcrumbs'
 
 function getStatusColor(status: EventStatus): string {
   switch (status) {
@@ -112,16 +113,16 @@ function EventsListContent() {
   const sportIcon = getSportIcon(sportParam || undefined)
 
   return (
-    <main className="min-h-screen p-8">
+    <main className="min-h-screen p-6 lg:p-8">
+      <Breadcrumbs items={[
+        { label: 'Dashboard', href: '/admin/darts' },
+        { label: sportParam ? `${sportLabel} Events` : 'Events' },
+      ]} />
+
       <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <Link href="/admin" className="btn-touch btn-secondary px-4 py-2">
-            &larr; Back
-          </Link>
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">{sportIcon}</span>
-            <h1 className="text-4xl font-bold">{sportParam ? `${sportLabel} Events` : 'All Events'}</h1>
-          </div>
+        <div className="flex items-center gap-3">
+          <span className="text-3xl">{sportIcon}</span>
+          <h1 className="text-3xl font-bold">{sportParam ? `${sportLabel} Events` : 'All Events'}</h1>
         </div>
         <div className="flex items-center gap-3">
           {isAuthenticated && (

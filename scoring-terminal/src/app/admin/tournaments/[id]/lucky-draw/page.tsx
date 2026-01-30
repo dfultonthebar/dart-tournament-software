@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Tournament, Player, TournamentStatus, Team } from '@shared/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { getApiUrl } from '@shared/lib/api-url'
+import Breadcrumbs from '@/components/Breadcrumbs'
 
 interface TournamentEntry {
   id: string
@@ -186,15 +187,17 @@ export default function LuckyDrawPage() {
   const canProceed = teams.length > 0
 
   return (
-    <main className="min-h-screen p-8">
-      <div className="flex items-center gap-4 mb-8">
-        <Link href={`/admin/tournaments/${tournamentId}`} className="btn-touch btn-secondary px-4 py-2">
-          &larr; Back
-        </Link>
-        <div>
-          <h1 className="text-4xl font-bold">Lucky Draw Teams</h1>
-          <p className="text-gray-400 mt-1">{tournament.name}</p>
-        </div>
+    <main className="min-h-screen p-6 lg:p-8">
+      <Breadcrumbs items={[
+        { label: 'Dashboard', href: '/admin/darts' },
+        { label: 'Tournaments', href: '/admin/tournaments' },
+        { label: tournament.name, href: `/admin/tournaments/${tournamentId}` },
+        { label: 'Lucky Draw Teams' },
+      ]} />
+
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">Lucky Draw Teams</h1>
+        <p className="text-gray-400 mt-1">{tournament.name}</p>
       </div>
 
       {!isAuthenticated && (

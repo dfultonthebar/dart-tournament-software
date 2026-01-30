@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Tournament, TournamentStatus } from '@shared/types'
 import { getApiUrl } from '@shared/lib/api-url'
+import Breadcrumbs from '@/components/Breadcrumbs'
 
 export default function TournamentsListPage() {
   const [tournaments, setTournaments] = useState<Tournament[]>([])
@@ -37,14 +38,14 @@ export default function TournamentsListPage() {
   }
 
   return (
-    <main className="min-h-screen p-8">
+    <main className="min-h-screen p-6 lg:p-8">
+      <Breadcrumbs items={[
+        { label: 'Dashboard', href: '/admin/darts' },
+        { label: 'Tournaments' },
+      ]} />
+
       <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <Link href="/admin" className="btn-touch btn-secondary px-4 py-2">
-            &larr; Back
-          </Link>
-          <h1 className="text-4xl font-bold">All Tournaments</h1>
-        </div>
+        <h1 className="text-3xl font-bold">All Tournaments</h1>
         <Link href="/admin/tournaments/new" className="btn-touch btn-primary px-6 py-3">
           + New Tournament
         </Link>

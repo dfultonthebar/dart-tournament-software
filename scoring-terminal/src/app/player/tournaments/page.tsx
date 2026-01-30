@@ -271,7 +271,7 @@ export default function PlayerTournaments() {
                   {signedUp ? (
                     <div className="flex gap-3">
                       <div className="flex-1 py-3 bg-green-900/50 text-green-400 rounded-lg text-center font-medium">
-                        You're signed up!
+                        You&apos;re signed up!
                       </div>
                       {!entry?.paid && (
                         <button
