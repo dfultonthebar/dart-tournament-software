@@ -3,9 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import RegistrationQRCode from '@/components/RegistrationQRCode'
-
-// Helper to get API base URL
-const getApiUrl = () => typeof window !== 'undefined' ? `http://${window.location.hostname}:8000/api` : 'http://localhost:8000/api'
+import { getApiUrl } from '@shared/lib/api-url'
 
 interface Tournament {
   id: string

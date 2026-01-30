@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Dart Scoring Terminal',
-  description: 'WAMO Dart Tournament Scoring System',
+  title: 'Dart Mobile App',
+  description: 'WAMO Dart Tournament Mobile App',
 }
 
 export default function RootLayout({

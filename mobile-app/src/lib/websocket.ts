@@ -1,4 +1,4 @@
-import { WS_BASE_URL } from '@shared/constants';
+import { getWsUrl } from '@shared/lib/api-url';
 import { WebSocketMessage, WebSocketSubscribeMessage, WebSocketEventType } from '@shared/types';
 
 type EventHandler = (message: WebSocketMessage) => void;
@@ -16,7 +16,7 @@ class WebSocketClient {
       return;
     }
 
-    this.ws = new WebSocket(`${WS_BASE_URL}/ws`);
+    this.ws = new WebSocket(getWsUrl());
 
     this.ws.onopen = () => {
       console.log('WebSocket connected');

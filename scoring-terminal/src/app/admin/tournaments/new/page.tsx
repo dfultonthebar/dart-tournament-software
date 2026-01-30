@@ -5,9 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { Event, SportType } from '@shared/types'
-
-// Helper to get API base URL
-const getApiUrl = () => typeof window !== 'undefined' ? `http://${window.location.hostname}:8000/api` : 'http://localhost:8000/api'
+import { getApiUrl } from '@shared/lib/api-url'
 
 const GAME_TYPES = [
   { value: '501', label: '501' },

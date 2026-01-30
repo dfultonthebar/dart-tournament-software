@@ -5,9 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Tournament, Player, TournamentStatus, Team } from '@shared/types'
 import { useAuth } from '@/contexts/AuthContext'
-
-// Helper to get API base URL
-const getApiUrl = () => typeof window !== 'undefined' ? `http://${window.location.hostname}:8000/api` : 'http://localhost:8000/api'
+import { getApiUrl } from '@shared/lib/api-url'
 
 interface TournamentEntry {
   id: string

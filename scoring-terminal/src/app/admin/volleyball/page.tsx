@@ -5,8 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Event, EventStatus, SportType } from '@shared/types'
-
-const getApiUrl = () => typeof window !== 'undefined' ? `http://${window.location.hostname}:8000/api` : 'http://localhost:8000/api'
+import { getApiUrl } from '@shared/lib/api-url'
 
 function getStatusColor(status: EventStatus): string {
   switch (status) {

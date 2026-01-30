@@ -87,7 +87,7 @@ The system includes:
 - Complete backend API with JWT auth
 - All 7 WAMO game types (301/501, Cricket, Round the Clock, Killer, Shanghai, Baseball)
 - **Lucky Draw Doubles** team tournament support (added 2026-01-28)
-- Three frontends (scoring, display, mobile — note: mobile-app is broken, see Known Issues)
+- Three frontends (scoring, display, mobile)
 - Comprehensive deployment configurations
 - Complete documentation
 - CI/CD pipeline (GitHub Actions)
@@ -130,6 +130,45 @@ then run a single elimination bracket where teams are the bracket units.
 8. Winner team advances — both team members appear in next round match
 
 **Simulation script:** `/tmp/sim_doubles.js` — verified 22 players, 11 teams, full bracket completion
+
+### Double Elimination Bracket Feature (2026-01-29)
+
+Full double elimination bracket support with Winners Bracket, Losers Bracket, and
+Grand Final (with optional reset match).
+
+**Backend files modified:**
+- `backend/api/tournaments.py` — `_generate_double_elimination_bracket()`, `_get_seed_positions()`, proper seeding
+- `backend/api/matches.py` — `_advance_double_elim_winner()`, `_advance_wb_match()`, `_advance_lb_match()`, `_advance_gf1()`, `_advance_gf2()`, `_place_player_in_match()`, `_check_double_elim_bye_cascade()`, `_all_feeders_done()`, `_get_loser_id()`
+
+**Bracket position format:**
+- Winners Bracket: `WR{round}M{index}` (e.g., `WR1M1`, `WR2M3`)
+- Losers Bracket: `LR{round}M{index}` (e.g., `LR1M1`, `LR3M2`)
+- Grand Final: `GF1` (first match), `GF2` (reset match)
+
+**Round number encoding:**
+- Winners Bracket: rounds 1–N
+- Losers Bracket: rounds 101+
+- Grand Final 1: round 200
+- Grand Final 2: round 201
+
+**Frontend files updated:**
+- `display-terminal/src/app/brackets/[id]/page.tsx` — Three-section rendering (WB/GF/LB)
+- `display-terminal/src/app/globals.css` — Double elimination CSS classes
+- `scoring-terminal/src/app/brackets/[id]/page.tsx` — WB/LB/GF section grouping
+- `scoring-terminal/src/app/matches/page.tsx` — Bracket type labels on match cards
+
+**How it works:**
+1. Admin creates tournament with format `double_elimination`
+2. Players register and are seeded into the Winners Bracket
+3. Admin calls `POST /tournaments/{id}/generate-bracket` to create the full bracket structure
+4. Winners Bracket losers drop into the Losers Bracket at the corresponding round
+5. Losers Bracket losers are eliminated from the tournament
+6. The Winners Bracket final winner and Losers Bracket final winner meet in Grand Final 1 (GF1)
+7. If the Losers Bracket player wins GF1, a reset match (GF2) is played to determine the champion
+8. If the Winners Bracket player wins GF1, they are the champion (no reset needed)
+9. Byes cascade automatically when bracket positions have only one feeder match
+
+**Test script:** `test_double_elim.js`
 
 ## Working with This System
 
@@ -443,28 +482,7 @@ When helping users, determine:
 
 ### Not Yet Fixed (require larger refactoring)
 
-**Doubles scoring pages:** `scoring-terminal/src/app/score/[matchId]/page.tsx` and
-`scoring-terminal/src/app/scoring/page.tsx` only support singles matches (2 players).
-They need team grouping logic for 4-player doubles matches.
-
-**Player matches page:** `scoring-terminal/src/app/player/matches/page.tsx` —
-`getOpponent()` returns first non-self player which could be a teammate in doubles.
-Winner check uses `winner_id` instead of `winner_team_id`.
-
-**mobile-app/ is broken:** The `mobile-app/` directory structure is non-functional.
-`mobile-app/package.json` expects a Next.js app at root but the code is nested inside
-`mobile-app/scoring-terminal/`. The `@shared` path alias in its tsconfig resolves to
-a non-existent `mobile-app/shared/` directory. CI build for mobile-app will fail.
-
-**ESLint not installed:** No ESLint packages are installed in any frontend.
-`npm run lint:frontend` and `next lint` commands will fail.
-
-**`getApiUrl()` duplicated in ~20 files:** Each page defines its own inline
-`getApiUrl()` helper. Should be a shared utility.
-
-**`api.ts` uses hardcoded localhost:** `scoring-terminal/src/lib/api.ts` imports
-`API_BASE_URL` from `@shared/constants` (localhost:8000) instead of using
-`window.location.hostname`. Same for `websocket.ts`.
+(All items from the original audit have been addressed — see Fixed in This Session.)
 
 ### Fixed in This Session
 
@@ -477,6 +495,12 @@ a non-existent `mobile-app/shared/` directory. CI build for mobile-app will fail
 - Database: added unique index on `players.phone` (fixed 20 duplicate phone records)
 - Database: added 15 FK performance indexes
 - Backend: added `asyncpg` to `requirements.txt`
+- Doubles scoring pages: now have team grouping logic for 4-player doubles matches
+- Player matches page: `getOpponent()` fixed for doubles, uses `winner_team_id`
+- mobile-app/ broken directory: restructured, builds successfully
+- `getApiUrl()` duplicated in ~20 files: shared utility created at `shared/lib/api-url.ts`
+- `api.ts` uses hardcoded localhost: now uses `getApiUrl`/`getWsUrl` from shared utility
+- ESLint not installed: installed in all frontends with `next/core-web-vitals` config
 
 ---
 

@@ -3,8 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-
-const getApiUrl = () => typeof window !== 'undefined' ? `http://${window.location.hostname}:8000/api` : 'http://localhost:8000/api'
+import { getApiUrl } from '@shared/lib/api-url'
 
 interface MatchPlayer {
   player_id: string
@@ -13,6 +12,8 @@ interface MatchPlayer {
   legs_won: number
   arrived_at_board: string | null
   reported_win: boolean | null
+  team_id?: string | null
+  team_position?: number | null
 }
 
 interface Match {
@@ -24,6 +25,7 @@ interface Match {
   started_at: string | null
   completed_at: string | null
   winner_id: string | null
+  winner_team_id: string | null
   dartboard_id: string | null
   players: MatchPlayer[]
 }
@@ -233,8 +235,34 @@ export default function PlayerMatches() {
     return match.players.find(p => p.player_id === playerId)
   }
 
-  function getOpponent(match: Match): MatchPlayer | undefined {
-    return match.players.find(p => p.player_id !== playerId)
+  function isDoublesMatch(match: Match): boolean {
+    return match.players.some(p => p.team_id)
+  }
+
+  function getMyTeamId(match: Match): string | null {
+    const me = match.players.find(p => p.player_id === playerId)
+    return me?.team_id || null
+  }
+
+  function getTeammates(match: Match): MatchPlayer[] {
+    const myTeamId = getMyTeamId(match)
+    if (!myTeamId) return []
+    return match.players.filter(p => p.team_id === myTeamId && p.player_id !== playerId)
+  }
+
+  function getOpponents(match: Match): MatchPlayer[] {
+    if (isDoublesMatch(match)) {
+      const myTeamId = getMyTeamId(match)
+      return match.players.filter(p => p.team_id !== myTeamId)
+    }
+    // Singles: return the single opponent
+    return match.players.filter(p => p.player_id !== playerId)
+  }
+
+  function getOpponentLabel(match: Match): string {
+    const opponents = getOpponents(match)
+    if (opponents.length === 0) return 'TBD'
+    return opponents.map(p => getPlayerName(p.player_id)).join(' & ')
   }
 
   function getPlayerName(id: string): string {
@@ -315,9 +343,16 @@ export default function PlayerMatches() {
           <div className="space-y-4">
             {matches.map((match) => {
               const me = getMyMatchPlayer(match)
-              const opponent = getOpponent(match)
+              const doubles = isDoublesMatch(match)
+              const myTeamId = getMyTeamId(match)
+              const teammates = getTeammates(match)
+              const opponents = getOpponents(match)
+              const opponentLabel = getOpponentLabel(match)
               const tournamentName = tournaments[match.tournament_id]?.name || 'Tournament'
               const isActive = ['pending', 'waiting_for_players', 'in_progress'].includes(match.status)
+              const didWin = doubles
+                ? (match.winner_team_id != null && match.winner_team_id === myTeamId)
+                : (match.winner_id === playerId)
 
               return (
                 <div
@@ -326,7 +361,7 @@ export default function PlayerMatches() {
                     match.status === 'waiting_for_players' ? 'border-yellow-500' :
                     match.status === 'in_progress' ? 'border-blue-500' :
                     match.status === 'disputed' ? 'border-red-500' :
-                    match.status === 'completed' && match.winner_id === playerId ? 'border-green-500' :
+                    match.status === 'completed' && didWin ? 'border-green-500' :
                     'border-transparent'
                   }`}
                 >
@@ -355,23 +390,35 @@ export default function PlayerMatches() {
                       {me?.arrived_at_board && (
                         <p className="text-xs text-green-500 mt-1">At board</p>
                       )}
+                      {doubles && teammates.map(t => (
+                        <div key={t.player_id}>
+                          <p className="text-sm text-green-300">{getPlayerName(t.player_id)}</p>
+                          {t.arrived_at_board && (
+                            <p className="text-xs text-green-500">At board</p>
+                          )}
+                        </div>
+                      ))}
                     </div>
                     <div className="text-2xl font-bold text-gray-500">vs</div>
                     <div className="text-center flex-1">
-                      <p className="font-bold">{opponent ? getPlayerName(opponent.player_id) : 'TBD'}</p>
-                      {opponent?.arrived_at_board && (
-                        <p className="text-xs text-green-500 mt-1">At board</p>
-                      )}
+                      <p className="font-bold">{opponentLabel}</p>
+                      {opponents.map(opp => (
+                        <span key={opp.player_id}>
+                          {opp.arrived_at_board && (
+                            <p className="text-xs text-green-500 mt-1">At board</p>
+                          )}
+                        </span>
+                      ))}
                     </div>
                   </div>
 
                   {/* Result for completed matches */}
                   {match.status === 'completed' && (
                     <div className={`text-center py-2 rounded-lg mb-3 ${
-                      match.winner_id === playerId ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'
+                      didWin ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'
                     }`}>
                       <p className="font-bold text-lg">
-                        {match.winner_id === playerId ? 'You Won!' : 'You Lost'}
+                        {didWin ? (doubles ? 'Your Team Won!' : 'You Won!') : (doubles ? 'Your Team Lost' : 'You Lost')}
                       </p>
                     </div>
                   )}

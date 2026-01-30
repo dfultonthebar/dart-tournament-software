@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { api } from '@/lib/api'
-import { MatchWithPlayers, Player, Game, MatchStatus } from '@shared/types'
+import { MatchWithPlayers, MatchPlayerInfo, Player, Game, MatchStatus } from '@shared/types'
 
 interface GameState {
   id: string
@@ -132,6 +132,33 @@ export default function ScoringPage() {
     return currentGame.game_data.scores[playerId] ?? (currentGame.game_data.starting_score || 501)
   }
 
+  // Doubles detection: check if any player has a team_id set
+  const isDoubles = match ? match.players.some(p => !!p.team_id) : false
+
+  // Group players by team_id for doubles matches
+  function getTeams(): { teamId: string; players: MatchPlayerInfo[] }[] {
+    if (!match) return []
+    const teamMap = new Map<string, MatchPlayerInfo[]>()
+    for (const p of match.players) {
+      if (p.team_id) {
+        if (!teamMap.has(p.team_id)) {
+          teamMap.set(p.team_id, [])
+        }
+        teamMap.get(p.team_id)!.push(p)
+      }
+    }
+    const teams: { teamId: string; players: MatchPlayerInfo[] }[] = []
+    teamMap.forEach((teamPlayers, teamId) => {
+      teamPlayers.sort((a, b) => (a.team_position || 0) - (b.team_position || 0))
+      teams.push({ teamId, players: teamPlayers })
+    })
+    return teams
+  }
+
+  function getTeamDisplayName(teamPlayers: MatchPlayerInfo[]): string {
+    return teamPlayers.map(p => getPlayerName(p.player_id)).join(' & ')
+  }
+
   if (!matchId) {
     return (
       <main className="min-h-screen p-8">
@@ -164,6 +191,7 @@ export default function ScoringPage() {
 
   const player1 = match.players.find(p => p.position === 1)
   const player2 = match.players.find(p => p.position === 2)
+  const teams = isDoubles ? getTeams() : []
 
   return (
     <main className="min-h-screen p-4">
@@ -192,43 +220,78 @@ export default function ScoringPage() {
       )}
 
       {/* Players and Scores */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        {/* Player 1 */}
-        <div className={`bg-gray-800 rounded-lg p-4 text-center ${
-          currentGame?.current_player_id === player1?.player_id ? 'ring-2 ring-yellow-500' : ''
-        }`}>
-          <div className="text-lg font-bold mb-2">
-            {player1 ? getPlayerName(player1.player_id) : 'TBD'}
-          </div>
-          <div className="text-5xl font-bold text-green-400 mb-2">
-            {player1 ? getPlayerScore(player1.player_id) : '-'}
-          </div>
-          <div className="text-gray-400">
-            Legs: {player1?.legs_won || 0}
-          </div>
-          {currentGame?.current_player_id === player1?.player_id && (
-            <div className="text-yellow-400 text-sm mt-2">◀ Throwing</div>
-          )}
+      {isDoubles ? (
+        /* Doubles: show team panels */
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          {teams.map((team, teamIndex) => (
+            <div
+              key={team.teamId}
+              className={`bg-gray-800 rounded-lg p-4 text-center ${
+                team.players.some(p => currentGame?.current_player_id === p.player_id) ? 'ring-2 ring-yellow-500' : ''
+              }`}
+            >
+              <div className="text-lg font-bold mb-2">
+                {getTeamDisplayName(team.players)}
+              </div>
+              {team.players.map(p => (
+                <div key={p.player_id} className="mb-1">
+                  <div className="text-3xl font-bold text-green-400">
+                    {getPlayerScore(p.player_id)}
+                  </div>
+                  <div className="text-xs text-gray-500">{getPlayerName(p.player_id)}</div>
+                </div>
+              ))}
+              <div className="text-gray-400 mt-1">
+                Legs: {team.players[0]?.legs_won || 0}
+              </div>
+              {team.players.some(p => currentGame?.current_player_id === p.player_id) && (
+                <div className="text-yellow-400 text-sm mt-2">
+                  {teamIndex === 0 ? '\u25C0 Throwing' : 'Throwing \u25B6'}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
+      ) : (
+        /* Singles: show individual player panels */
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          {/* Player 1 */}
+          <div className={`bg-gray-800 rounded-lg p-4 text-center ${
+            currentGame?.current_player_id === player1?.player_id ? 'ring-2 ring-yellow-500' : ''
+          }`}>
+            <div className="text-lg font-bold mb-2">
+              {player1 ? getPlayerName(player1.player_id) : 'TBD'}
+            </div>
+            <div className="text-5xl font-bold text-green-400 mb-2">
+              {player1 ? getPlayerScore(player1.player_id) : '-'}
+            </div>
+            <div className="text-gray-400">
+              Legs: {player1?.legs_won || 0}
+            </div>
+            {currentGame?.current_player_id === player1?.player_id && (
+              <div className="text-yellow-400 text-sm mt-2">{'\u25C0'} Throwing</div>
+            )}
+          </div>
 
-        {/* Player 2 */}
-        <div className={`bg-gray-800 rounded-lg p-4 text-center ${
-          currentGame?.current_player_id === player2?.player_id ? 'ring-2 ring-yellow-500' : ''
-        }`}>
-          <div className="text-lg font-bold mb-2">
-            {player2 ? getPlayerName(player2.player_id) : 'TBD'}
+          {/* Player 2 */}
+          <div className={`bg-gray-800 rounded-lg p-4 text-center ${
+            currentGame?.current_player_id === player2?.player_id ? 'ring-2 ring-yellow-500' : ''
+          }`}>
+            <div className="text-lg font-bold mb-2">
+              {player2 ? getPlayerName(player2.player_id) : 'TBD'}
+            </div>
+            <div className="text-5xl font-bold text-green-400 mb-2">
+              {player2 ? getPlayerScore(player2.player_id) : '-'}
+            </div>
+            <div className="text-gray-400">
+              Legs: {player2?.legs_won || 0}
+            </div>
+            {currentGame?.current_player_id === player2?.player_id && (
+              <div className="text-yellow-400 text-sm mt-2">Throwing {'\u25B6'}</div>
+            )}
           </div>
-          <div className="text-5xl font-bold text-green-400 mb-2">
-            {player2 ? getPlayerScore(player2.player_id) : '-'}
-          </div>
-          <div className="text-gray-400">
-            Legs: {player2?.legs_won || 0}
-          </div>
-          {currentGame?.current_player_id === player2?.player_id && (
-            <div className="text-yellow-400 text-sm mt-2">Throwing ▶</div>
-          )}
         </div>
-      </div>
+      )}
 
       {/* Match Controls */}
       {match.status === MatchStatus.PENDING && (
@@ -305,7 +368,13 @@ export default function ScoringPage() {
         <div className="text-center py-8">
           <div className="text-2xl font-bold text-green-400 mb-4">Match Complete!</div>
           <div className="text-xl">
-            Winner: {match.winner_id ? getPlayerName(match.winner_id) : 'Unknown'}
+            Winner: {(() => {
+              if (isDoubles && match.winner_team_id) {
+                const winningTeam = teams.find(t => t.teamId === match.winner_team_id)
+                if (winningTeam) return getTeamDisplayName(winningTeam.players)
+              }
+              return match.winner_id ? getPlayerName(match.winner_id) : 'Unknown'
+            })()}
           </div>
           <Link href={`/matches?tournament=${match.tournament_id}`} className="btn-touch btn-primary mt-6 inline-block px-6 py-3">
             Back to Matches

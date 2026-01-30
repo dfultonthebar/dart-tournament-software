@@ -4,9 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Player } from '@shared/types'
 import { useAuth } from '@/contexts/AuthContext'
-
-// Helper to get API base URL
-const getApiUrl = () => typeof window !== 'undefined' ? `http://${window.location.hostname}:8000/api` : 'http://localhost:8000/api'
+import { getApiUrl } from '@shared/lib/api-url'
 
 export default function PlayersPage() {
   const { token, isAuthenticated } = useAuth()

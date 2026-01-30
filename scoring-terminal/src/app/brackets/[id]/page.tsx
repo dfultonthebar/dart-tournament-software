@@ -4,9 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { Tournament, Player, MatchWithPlayers, MatchPlayerInfo, MatchStatus, Team } from '@shared/types'
-
-// Helper to get API base URL
-const getApiUrl = () => typeof window !== 'undefined' ? `http://${window.location.hostname}:8000/api` : 'http://localhost:8000/api'
+import { getApiUrl } from '@shared/lib/api-url'
 
 export default function BracketPage() {
   const params = useParams()

@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import { API_BASE_URL } from '@shared/constants';
+import { getApiUrl } from '@shared/lib/api-url';
 import {
   Player,
   Tournament,
@@ -18,7 +18,7 @@ class ApiClient {
 
   constructor() {
     this.client = axios.create({
-      baseURL: API_BASE_URL,
+      baseURL: getApiUrl(),
       headers: {
         'Content-Type': 'application/json',
       },

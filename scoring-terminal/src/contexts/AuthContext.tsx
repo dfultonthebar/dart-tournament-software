@@ -1,12 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-
-// Get API base URL dynamically based on current hostname
-function getApiUrl() {
-  if (typeof window === 'undefined') return 'http://localhost:8000/api'
-  return `http://${window.location.hostname}:8000/api`
-}
+import { getApiUrl } from '@shared/lib/api-url'
 
 interface AuthContextType {
   token: string | null

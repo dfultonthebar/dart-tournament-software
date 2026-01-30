@@ -2,11 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-
-// Helper to get API base URL (works on any device accessing the server)
-const getApiUrl = () => typeof window !== 'undefined'
-  ? `http://${window.location.hostname}:8000/api`
-  : 'http://localhost:8000/api'
+import { getApiUrl } from '@shared/lib/api-url'
 
 interface FormData {
   name: string

@@ -4,8 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
-
-const getApiUrl = () => typeof window !== 'undefined' ? `http://${window.location.hostname}:8000/api` : 'http://localhost:8000/api'
+import { getApiUrl } from '@shared/lib/api-url'
 
 interface Player {
   id: string
@@ -17,6 +16,8 @@ interface MatchPlayer {
   position: number
   sets_won: number
   legs_won: number
+  team_id?: string
+  team_position?: number
 }
 
 interface Match {
@@ -26,6 +27,7 @@ interface Match {
   match_number: number
   status: string
   winner_id: string | null
+  winner_team_id?: string | null
   players: MatchPlayer[]
 }
 
@@ -46,6 +48,7 @@ export default function ScoreMatchPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [selectedWinner, setSelectedWinner] = useState<string | null>(null)
+  const [selectedWinnerTeamId, setSelectedWinnerTeamId] = useState<string | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
   const [error, setError] = useState('')
 
@@ -97,13 +100,43 @@ export default function ScoreMatchPage() {
     return players[playerId]?.name || 'Unknown Player'
   }
 
-  function handleSelectWinner(playerId: string) {
+  // Doubles detection: check if any player has a team_id set
+  const isDoubles = match ? match.players.some(p => !!p.team_id) : false
+
+  // Group players by team_id for doubles matches
+  function getTeams(): { teamId: string; players: MatchPlayer[] }[] {
+    if (!match) return []
+    const teamMap = new Map<string, MatchPlayer[]>()
+    for (const p of match.players) {
+      if (p.team_id) {
+        if (!teamMap.has(p.team_id)) {
+          teamMap.set(p.team_id, [])
+        }
+        teamMap.get(p.team_id)!.push(p)
+      }
+    }
+    // Sort players within each team by team_position
+    const teams: { teamId: string; players: MatchPlayer[] }[] = []
+    teamMap.forEach((players, teamId) => {
+      players.sort((a, b) => (a.team_position || 0) - (b.team_position || 0))
+      teams.push({ teamId, players })
+    })
+    return teams
+  }
+
+  function getTeamDisplayName(teamPlayers: MatchPlayer[]): string {
+    return teamPlayers.map(p => getPlayerName(p.player_id)).join(' & ')
+  }
+
+  function handleSelectWinner(playerId: string, teamId?: string) {
     setSelectedWinner(playerId)
+    setSelectedWinnerTeamId(teamId || null)
     setShowConfirm(true)
   }
 
   function handleCancelConfirm() {
     setSelectedWinner(null)
+    setSelectedWinnerTeamId(null)
     setShowConfirm(false)
   }
 
@@ -114,16 +147,21 @@ export default function ScoreMatchPage() {
     setError('')
 
     try {
+      const body: Record<string, string> = {
+        winner_id: selectedWinner,
+        status: 'completed',
+      }
+      if (selectedWinnerTeamId) {
+        body.winner_team_id = selectedWinnerTeamId
+      }
+
       const response = await fetch(`${getApiUrl()}/matches/${matchId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({
-          winner_id: selectedWinner,
-          status: 'completed',
-        }),
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) {
@@ -187,7 +225,14 @@ export default function ScoreMatchPage() {
             <div className="bg-green-600/20 border border-green-500 rounded-lg p-6 mb-6">
               <div className="text-green-400 text-lg mb-2">Match Complete</div>
               <div className="text-3xl font-bold">
-                Winner: {match.winner_id ? getPlayerName(match.winner_id) : 'Unknown'}
+                Winner: {(() => {
+                  if (isDoubles && match.winner_team_id) {
+                    const teams = getTeams()
+                    const winningTeam = teams.find(t => t.teamId === match.winner_team_id)
+                    if (winningTeam) return getTeamDisplayName(winningTeam.players)
+                  }
+                  return match.winner_id ? getPlayerName(match.winner_id) : 'Unknown'
+                })()}
               </div>
             </div>
 
@@ -233,43 +278,67 @@ export default function ScoreMatchPage() {
 
         {/* Instructions */}
         <div className="text-center mb-8">
-          <h2 className="text-xl text-gray-300">Tap the winner to record the match result</h2>
+          <h2 className="text-xl text-gray-300">
+            {isDoubles ? 'Tap to select winning team' : 'Tap the winner to record the match result'}
+          </h2>
         </div>
 
-        {/* Player Selection Buttons */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          {/* Player 1 Button */}
-          {player1 && (
-            <button
-              onClick={() => handleSelectWinner(player1.player_id)}
-              disabled={saving}
-              className="btn-touch bg-gray-800 hover:bg-blue-700 active:bg-blue-600 border-2 border-gray-700 hover:border-blue-500 rounded-2xl p-8 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-h-[200px] flex flex-col items-center justify-center"
-            >
-              <div className="text-3xl md:text-4xl font-bold mb-4">
-                {getPlayerName(player1.player_id)}
-              </div>
-              <div className="text-gray-400 text-lg">
-                Tap to select as winner
-              </div>
-            </button>
-          )}
+        {/* Player/Team Selection Buttons */}
+        {isDoubles ? (
+          /* Doubles: show one button per team */
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            {getTeams().map(team => (
+              <button
+                key={team.teamId}
+                onClick={() => handleSelectWinner(team.players[0].player_id, team.teamId)}
+                disabled={saving}
+                className="btn-touch bg-gray-800 hover:bg-blue-700 active:bg-blue-600 border-2 border-gray-700 hover:border-blue-500 rounded-2xl p-8 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-h-[200px] flex flex-col items-center justify-center"
+              >
+                <div className="text-3xl md:text-4xl font-bold mb-4">
+                  {getTeamDisplayName(team.players)}
+                </div>
+                <div className="text-gray-400 text-lg">
+                  Tap to select winning team
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : (
+          /* Singles: show one button per player */
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            {/* Player 1 Button */}
+            {player1 && (
+              <button
+                onClick={() => handleSelectWinner(player1.player_id)}
+                disabled={saving}
+                className="btn-touch bg-gray-800 hover:bg-blue-700 active:bg-blue-600 border-2 border-gray-700 hover:border-blue-500 rounded-2xl p-8 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-h-[200px] flex flex-col items-center justify-center"
+              >
+                <div className="text-3xl md:text-4xl font-bold mb-4">
+                  {getPlayerName(player1.player_id)}
+                </div>
+                <div className="text-gray-400 text-lg">
+                  Tap to select as winner
+                </div>
+              </button>
+            )}
 
-          {/* Player 2 Button */}
-          {player2 && (
-            <button
-              onClick={() => handleSelectWinner(player2.player_id)}
-              disabled={saving}
-              className="btn-touch bg-gray-800 hover:bg-blue-700 active:bg-blue-600 border-2 border-gray-700 hover:border-blue-500 rounded-2xl p-8 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-h-[200px] flex flex-col items-center justify-center"
-            >
-              <div className="text-3xl md:text-4xl font-bold mb-4">
-                {getPlayerName(player2.player_id)}
-              </div>
-              <div className="text-gray-400 text-lg">
-                Tap to select as winner
-              </div>
-            </button>
-          )}
-        </div>
+            {/* Player 2 Button */}
+            {player2 && (
+              <button
+                onClick={() => handleSelectWinner(player2.player_id)}
+                disabled={saving}
+                className="btn-touch bg-gray-800 hover:bg-blue-700 active:bg-blue-600 border-2 border-gray-700 hover:border-blue-500 rounded-2xl p-8 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-h-[200px] flex flex-col items-center justify-center"
+              >
+                <div className="text-3xl md:text-4xl font-bold mb-4">
+                  {getPlayerName(player2.player_id)}
+                </div>
+                <div className="text-gray-400 text-lg">
+                  Tap to select as winner
+                </div>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* VS Divider - visible on larger screens */}
         <div className="hidden md:block absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
@@ -281,12 +350,23 @@ export default function ScoreMatchPage() {
       {showConfirm && selectedWinner && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-800 rounded-2xl p-8 max-w-md w-full">
-            <h2 className="text-2xl font-bold text-center mb-6">Confirm Winner</h2>
+            <h2 className="text-2xl font-bold text-center mb-6">
+              {isDoubles ? 'Confirm Winning Team' : 'Confirm Winner'}
+            </h2>
 
             <div className="text-center mb-8">
-              <div className="text-gray-400 mb-2">Set match winner as:</div>
+              <div className="text-gray-400 mb-2">
+                {isDoubles ? 'Set winning team as:' : 'Set match winner as:'}
+              </div>
               <div className="text-3xl font-bold text-green-400">
-                {getPlayerName(selectedWinner)}
+                {(() => {
+                  if (isDoubles && selectedWinnerTeamId) {
+                    const teams = getTeams()
+                    const winningTeam = teams.find(t => t.teamId === selectedWinnerTeamId)
+                    if (winningTeam) return getTeamDisplayName(winningTeam.players)
+                  }
+                  return getPlayerName(selectedWinner)
+                })()}
               </div>
             </div>
 

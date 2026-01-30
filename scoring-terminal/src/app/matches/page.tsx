@@ -6,9 +6,7 @@ import { api } from '@/lib/api'
 import { MatchWithPlayers, MatchStatus, MatchPlayerInfo, Player, Tournament, Team } from '@shared/types'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
-
-// Helper to get API base URL
-const getApiUrl = () => typeof window !== 'undefined' ? `http://${window.location.hostname}:8000/api` : 'http://localhost:8000/api'
+import { getApiUrl } from '@shared/lib/api-url'
 
 interface Dartboard {
   id: string
