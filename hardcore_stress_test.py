@@ -24,9 +24,9 @@ ADMIN_NAME = "Admin"
 ADMIN_PIN = "1972"
 
 # Test parameters
-NUM_PLAYERS = 100
+NUM_PLAYERS = 1000
 NUM_DARTBOARDS = 10
-MAX_PLAYERS_PER_TOURNAMENT = 12
+MAX_PLAYERS_PER_TOURNAMENT = 25
 CONCURRENT_SCORERS = 8
 MAX_THROWS_PER_GAME = 40
 
@@ -59,7 +59,7 @@ def random_name():
                   "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson",
                   "Thomas", "Taylor", "Moore", "Jackson", "Martin", "Lee", "Perez", "Thompson", "White",
                   "Harris", "Sanchez", "Clark", "Lewis", "Robinson", "Walker", "Young", "Allen", "King"]
-    return f"{random.choice(first_names)} {random.choice(last_names)} {random.randint(1, 99)}"
+    return f"{random.choice(first_names)} {random.choice(last_names)} {random.randint(1, 999)}"
 
 
 def random_email(name: str):
@@ -152,12 +152,14 @@ async def register_player(session: aiohttp.ClientSession, player_num: int) -> Op
     phone = random_phone()
     pin = f"{random.randint(1000, 9999)}"
 
+    gender = random.choice(["M", "F"])
     success, data = await make_request(session, "POST", "/auth/player-register", data={
         "name": name,
         "email": email,
         "phone": phone,
         "pin": pin,
-        "marketing_opt_in": random.choice([True, False])
+        "marketing_opt_in": random.choice([True, False]),
+        "gender": gender
     })
 
     if success:
@@ -215,32 +217,47 @@ async def create_tournaments(session: aiohttp.ClientSession, token: str, event_i
 
     tournament_configs = [
         {"name": "501 Singles Championship", "game_type": "501", "format": "single_elimination",
-         "legs_to_win": 2, "double_out": True},
+         "legs_to_win": 2, "double_out": True, "is_coed": False},
         {"name": "301 Quick Fire", "game_type": "301", "format": "single_elimination",
-         "legs_to_win": 1, "double_out": True},
+         "legs_to_win": 1, "double_out": True, "is_coed": False},
         {"name": "Cricket Masters", "game_type": "cricket", "format": "single_elimination",
-         "legs_to_win": 2, "double_out": False},
-        {"name": "Round Robin Warm-Up", "game_type": "501", "format": "round_robin",
-         "legs_to_win": 1, "double_out": True},
-        {"name": "Lucky Draw Doubles", "game_type": "501", "format": "lucky_draw_doubles",
-         "legs_to_win": 2, "double_out": True},
+         "legs_to_win": 2, "double_out": False, "is_coed": False},
+        {"name": "Lucky Draw Co-Ed 501", "game_type": "501", "format": "lucky_draw_doubles",
+         "legs_to_win": 2, "double_out": True, "is_coed": True},
+        {"name": "Lucky Draw Co-Ed Cricket", "game_type": "cricket", "format": "lucky_draw_doubles",
+         "legs_to_win": 2, "double_out": False, "is_coed": True},
+        {"name": "Lucky Draw Co-Ed 301", "game_type": "301", "format": "lucky_draw_doubles",
+         "legs_to_win": 1, "double_out": True, "is_coed": True},
+        {"name": "Lucky Draw Random 501", "game_type": "501", "format": "lucky_draw_doubles",
+         "legs_to_win": 2, "double_out": True, "is_coed": False},
+        {"name": "Lucky Draw Random Cricket", "game_type": "cricket", "format": "lucky_draw_doubles",
+         "legs_to_win": 1, "double_out": False, "is_coed": False},
         {"name": "501 Knockout", "game_type": "501", "format": "single_elimination",
-         "legs_to_win": 3, "double_out": True},
+         "legs_to_win": 3, "double_out": True, "is_coed": False},
+        {"name": "Round Robin Warm-Up", "game_type": "501", "format": "round_robin",
+         "legs_to_win": 1, "double_out": True, "is_coed": False},
     ]
 
     tournaments = []
     for config in tournament_configs:
+        # Lucky draw doubles needs even player count for team pairing
+        is_lucky_draw = config["format"] == "lucky_draw_doubles"
+        max_p = MAX_PLAYERS_PER_TOURNAMENT
+        if is_lucky_draw and max_p % 2 != 0:
+            max_p = max_p - 1  # Round down to nearest even
+
         tournament_data = {
             "event_id": event_id,
             "name": config["name"],
             "game_type": config["game_type"],
             "format": config["format"],
-            "max_players": MAX_PLAYERS_PER_TOURNAMENT,
+            "max_players": max_p,
             "legs_to_win": config["legs_to_win"],
             "sets_to_win": 1,
             "double_in": False,
             "double_out": config["double_out"],
-            "master_out": False
+            "master_out": False,
+            "is_coed": config.get("is_coed", False)
         }
 
         if config["game_type"] in ["501", "301"]:
@@ -277,8 +294,8 @@ async def players_signup_for_tournaments(session: aiohttp.ClientSession, players
     signup_count = 0
 
     for player in players:
-        # Each player signs up for 1-3 random tournaments
-        num_signups = random.randint(1, 3)
+        # Each player signs up for 2-5 random tournaments
+        num_signups = random.randint(2, 5)
         selected_tournaments = random.sample(tournaments, min(num_signups, len(tournaments)))
 
         # Login as player
@@ -328,6 +345,54 @@ async def admin_process_payments(session: aiohttp.ClientSession, token: str,
     log(f"Payments processed: {stats['payments_processed']}", "SUCCESS")
 
 
+async def ensure_even_entries_for_lucky_draw(session: aiohttp.ClientSession, token: str,
+                                              tournaments: List[Dict], players: List[Dict]):
+    """Ensure lucky draw tournaments have even player counts"""
+    log("Ensuring even player counts for Lucky Draw tournaments...")
+
+    for tournament in tournaments:
+        if tournament.get("config", {}).get("format") != "lucky_draw_doubles":
+            continue
+
+        success, entries = await make_request(session, "GET",
+                                              f"/tournaments/{tournament['id']}/entries?limit=500", token)
+        if not success:
+            continue
+
+        checked_in = [e for e in entries if e.get("checked_in")]
+        total = len(checked_in)
+
+        if total % 2 != 0 and total > 0:
+            # Find a player not in this tournament and add them
+            existing_player_ids = set(e.get("player_id") for e in entries)
+            added = False
+            for player in players:
+                if player["id"] not in existing_player_ids:
+                    # Register, pay, and check in this player
+                    p_token = await player_login(session, player)
+                    if not p_token:
+                        continue
+                    ok, entry_data = await make_request(session, "POST",
+                                                        f"/tournaments/{tournament['id']}/entries",
+                                                        p_token, expect_error=True)
+                    if ok:
+                        entry_id = entry_data["id"]
+                        await make_request(session, "PATCH",
+                                          f"/tournaments/{tournament['id']}/entries/{entry_id}",
+                                          token, {"paid": True})
+                        await make_request(session, "POST",
+                                          f"/tournaments/{tournament['id']}/entries/{entry_id}/check-in",
+                                          token)
+                        log(f"  Added 1 player to {tournament['name']} (was {total}, now {total + 1})")
+                        stats["entries_added_for_even"] += 1
+                        added = True
+                        break
+            if not added:
+                log(f"  Could not even out {tournament['name']} ({total} players)", "WARN")
+        else:
+            log(f"  {tournament['name']}: {total} checked-in (already even)")
+
+
 async def generate_lucky_draw_teams(session: aiohttp.ClientSession, token: str,
                                      tournaments: List[Dict]):
     """Generate teams for Lucky Draw tournaments"""
@@ -339,7 +404,10 @@ async def generate_lucky_draw_teams(session: aiohttp.ClientSession, token: str,
                                                 f"/tournaments/{tournament['id']}/lucky-draw", token)
             if success and teams:
                 stats["teams_generated"] += len(teams)
-                log(f"  Generated {len(teams)} teams for {tournament['name']}")
+                is_coed = tournament.get("config", {}).get("is_coed", False)
+                log(f"  Generated {len(teams)} teams for {tournament['name']} {'(co-ed)' if is_coed else '(random)'}")
+            else:
+                log(f"  Failed to generate teams for {tournament['name']}: {teams}", "WARN")
 
 
 async def start_tournaments(session: aiohttp.ClientSession, token: str,
@@ -350,10 +418,6 @@ async def start_tournaments(session: aiohttp.ClientSession, token: str,
     tournament_matches = {}
 
     for tournament in tournaments:
-        # Skip lucky draw for now (bracket generation not fully implemented)
-        if tournament.get("config", {}).get("format") == "lucky_draw_doubles":
-            continue
-
         success, data = await make_request(session, "POST",
                                            f"/tournaments/{tournament['id']}/generate-bracket", token)
         if success:
@@ -680,7 +744,8 @@ async def main():
         # 7. Admin processes payments and check-ins
         await admin_process_payments(session, admin_token, tournaments)
 
-        # 8. Generate Lucky Draw teams
+        # 8. Ensure even player counts for Lucky Draw, then generate teams
+        await ensure_even_entries_for_lucky_draw(session, admin_token, tournaments, players)
         await generate_lucky_draw_teams(session, admin_token, tournaments)
 
         # 9. Start tournaments
