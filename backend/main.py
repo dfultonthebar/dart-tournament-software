@@ -1,6 +1,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import asyncio
 import uuid
 import json
 import logging
@@ -35,6 +36,9 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Closing Redis connection...")
     await close_redis()
+    logger.info("Disposing database engine...")
+    from backend.core.database import engine
+    await engine.dispose()
     logger.info("Application shutdown complete")
 
 
@@ -74,19 +78,16 @@ async def root():
     }
 
 
-@app.get("/health")
-async def health():
-    """Health check endpoint."""
+def _get_network_info():
+    """Sync function for blocking network operations."""
     import socket
     hostname = socket.gethostname()
+    ip_addresses = []
     try:
-        # Get all IP addresses for the machine
-        ip_addresses = []
         for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
             ip = info[4][0]
             if ip not in ip_addresses and not ip.startswith('127.'):
                 ip_addresses.append(ip)
-        # Fallback: try to get IP by connecting to external address
         if not ip_addresses:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))
@@ -94,6 +95,13 @@ async def health():
             s.close()
     except Exception:
         ip_addresses = []
+    return hostname, ip_addresses
+
+
+@app.get("/health")
+async def health():
+    """Health check endpoint."""
+    hostname, ip_addresses = await asyncio.to_thread(_get_network_info)
 
     return {
         "status": "healthy",
@@ -131,33 +139,12 @@ async def server_info():
     Returns the server's base URL that can be used to generate QR codes
     for player self-registration.
     """
-    import socket
     import os
 
-    hostname = socket.gethostname()
+    hostname, ip_addresses = await asyncio.to_thread(_get_network_info)
     port = int(os.environ.get("PORT", 8000))
 
-    # Get the primary IP address
-    primary_ip = None
-    try:
-        # Get all IP addresses for the machine
-        ip_addresses = []
-        for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
-            ip = info[4][0]
-            if ip not in ip_addresses and not ip.startswith('127.'):
-                ip_addresses.append(ip)
-
-        # Fallback: try to get IP by connecting to external address
-        if not ip_addresses:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            ip_addresses.append(s.getsockname()[0])
-            s.close()
-
-        if ip_addresses:
-            primary_ip = ip_addresses[0]
-    except Exception:
-        ip_addresses = []
+    primary_ip = ip_addresses[0] if ip_addresses else None
 
     # Build base URLs
     base_url = f"http://{primary_ip}:{port}" if primary_ip else f"http://localhost:{port}"

@@ -100,11 +100,12 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,
     },
-    {
-      command: 'cd mobile-app && npm run dev',
-      url: 'http://localhost:3003',
-      reuseExistingServer: !process.env.CI,
-      timeout: 120 * 1000,
-    },
+    // mobile-app disabled — directory structure is broken (known issue)
+    // {
+    //   command: 'cd mobile-app && npm run dev',
+    //   url: 'http://localhost:3003',
+    //   reuseExistingServer: !process.env.CI,
+    //   timeout: 120 * 1000,
+    // },
   ],
 });

@@ -66,25 +66,28 @@ export default function PlayerMatches() {
       const tournamentsData = await tournamentsRes.json()
 
       const tournamentMap: Record<string, Tournament> = {}
+      const activeTournaments = tournamentsData.filter(
+        (t: Tournament & { status?: string }) => t.status === 'in_progress' || t.status === 'completed'
+      )
+      activeTournaments.forEach((t: Tournament) => { tournamentMap[t.id] = t })
+
+      const matchResults = await Promise.all(
+        activeTournaments.map((t: Tournament) =>
+          fetch(`${getApiUrl()}/matches?tournament_id=${t.id}`, { headers })
+            .then(r => r.ok ? r.json() : [])
+            .catch(() => [])
+        )
+      )
+
       const allMatches: Match[] = []
-
-      for (const t of tournamentsData) {
-        if (t.status === 'in_progress' || t.status === 'completed') {
-          tournamentMap[t.id] = t
-
-          // Load matches for this tournament
-          const matchesRes = await fetch(`${getApiUrl()}/matches?tournament_id=${t.id}`, { headers })
-          const matchesData = await matchesRes.json()
-
-          // Filter to matches where I'm a player
-          for (const m of matchesData) {
-            const isMyMatch = m.players.some((p: MatchPlayer) => p.player_id === myId)
-            if (isMyMatch) {
-              allMatches.push(m)
-            }
+      matchResults.forEach((matchesData: Match[]) => {
+        for (const m of matchesData) {
+          const isMyMatch = m.players.some((p: MatchPlayer) => p.player_id === myId)
+          if (isMyMatch) {
+            allMatches.push(m)
           }
         }
-      }
+      })
 
       setTournaments(tournamentMap)
 

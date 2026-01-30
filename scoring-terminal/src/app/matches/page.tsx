@@ -51,23 +51,18 @@ export default function MatchesPage() {
       ])
 
       // Fetch match details to get dartboard_id (if not in the default response)
-      const matchesWithBoards: MatchWithDartboard[] = []
-      for (const match of matchesData) {
-        try {
-          const response = await fetch(`${getApiUrl()}/matches/${match.id}`)
-          if (response.ok) {
-            const fullMatch = await response.json()
-            matchesWithBoards.push({
-              ...match,
-              dartboard_id: fullMatch.dartboard_id
-            })
-          } else {
-            matchesWithBoards.push(match)
-          }
-        } catch {
-          matchesWithBoards.push(match)
-        }
-      }
+      const matchDetails = await Promise.all(
+        matchesData.map(match =>
+          fetch(`${getApiUrl()}/matches/${match.id}`)
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null)
+        )
+      )
+
+      const matchesWithBoards: MatchWithDartboard[] = matchesData.map((match, i) => ({
+        ...match,
+        dartboard_id: matchDetails[i]?.dartboard_id ?? match.dartboard_id
+      }))
 
       setMatches(matchesWithBoards)
       setTournament(tournamentData)

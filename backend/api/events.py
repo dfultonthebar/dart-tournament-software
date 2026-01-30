@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from uuid import UUID
@@ -65,6 +65,38 @@ async def list_events(
     events = result.scalars().all()
 
     return events
+
+
+@router.post("/archive-completed")
+async def archive_completed_events(
+    current_player: Player = Depends(get_current_admin_or_player),
+    db: AsyncSession = Depends(get_db)
+):
+    """Archive (delete) all completed and cancelled events. Admin only."""
+    if not isinstance(current_player, Admin):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admin can archive events"
+        )
+
+    result = await db.execute(
+        select(Event).where(
+            Event.status.in_([EventStatus.COMPLETED, EventStatus.CANCELLED])
+        )
+    )
+    events_to_archive = result.scalars().all()
+
+    archived_events = [
+        {"id": str(event.id), "name": event.name, "status": event.status.value}
+        for event in events_to_archive
+    ]
+
+    for event in events_to_archive:
+        await db.delete(event)
+
+    await db.flush()
+
+    return {"archived_count": len(archived_events), "archived_events": archived_events}
 
 
 @router.get("/{event_id}", response_model=EventResponse)
@@ -184,9 +216,9 @@ async def register_for_event(
     # Check max participants
     if event.max_participants:
         result = await db.execute(
-            select(EventEntry).where(EventEntry.event_id == event_id)
+            select(func.count()).select_from(EventEntry).where(EventEntry.event_id == event_id)
         )
-        current_count = len(result.scalars().all())
+        current_count = result.scalar()
         if current_count >= event.max_participants:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -255,9 +287,9 @@ async def add_player_to_event(
     # Check max participants
     if event.max_participants:
         result = await db.execute(
-            select(EventEntry).where(EventEntry.event_id == event_id)
+            select(func.count()).select_from(EventEntry).where(EventEntry.event_id == event_id)
         )
-        current_count = len(result.scalars().all())
+        current_count = result.scalar()
         if current_count >= event.max_participants:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

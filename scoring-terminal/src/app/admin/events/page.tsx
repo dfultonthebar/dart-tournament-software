@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Event, EventStatus, SportType } from '@shared/types'
+import { useAuth } from '@/contexts/AuthContext'
 
 // Helper to get API base URL
 const getApiUrl = () => typeof window !== 'undefined' ? `http://${window.location.hostname}:8000/api` : 'http://localhost:8000/api'
@@ -43,8 +44,13 @@ function EventsListContent() {
   const searchParams = useSearchParams()
   const sportParam = searchParams.get('sport') as SportType | null
 
+  const { token, isAuthenticated } = useAuth()
+
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
+  const [archiving, setArchiving] = useState(false)
+  const [archiveMessage, setArchiveMessage] = useState('')
 
   useEffect(() => {
     loadEvents()
@@ -68,6 +74,42 @@ function EventsListContent() {
     }
   }
 
+  async function archiveCompleted() {
+    if (!token) return
+
+    setArchiving(true)
+    setArchiveMessage('')
+
+    try {
+      const response = await fetch(`${getApiUrl()}/events/archive-completed`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.detail || 'Failed to archive events')
+      }
+
+      const data = await response.json()
+      const count = data.archived_count ?? data.count ?? 0
+      setArchiveMessage(`Successfully archived ${count} event${count !== 1 ? 's' : ''}.`)
+      setShowArchiveConfirm(false)
+      await loadEvents()
+
+      // Clear success message after 5 seconds
+      setTimeout(() => setArchiveMessage(''), 5000)
+    } catch (err: any) {
+      setArchiveMessage(`Error: ${err.message || 'Failed to archive events'}`)
+      setShowArchiveConfirm(false)
+      setTimeout(() => setArchiveMessage(''), 5000)
+    } finally {
+      setArchiving(false)
+    }
+  }
+
   const sportLabel = getSportLabel(sportParam || undefined)
   const sportIcon = getSportIcon(sportParam || undefined)
 
@@ -83,13 +125,57 @@ function EventsListContent() {
             <h1 className="text-4xl font-bold">{sportParam ? `${sportLabel} Events` : 'All Events'}</h1>
           </div>
         </div>
-        <Link
-          href={sportParam ? `/admin/events/new?sport=${sportParam}` : '/admin/events/new'}
-          className="btn-touch btn-primary px-6 py-3"
-        >
-          + New {sportLabel} Event
-        </Link>
+        <div className="flex items-center gap-3">
+          {isAuthenticated && (
+            <button
+              onClick={() => setShowArchiveConfirm(true)}
+              className="btn-touch px-6 py-3 bg-gray-600 hover:bg-purple-600 rounded-lg font-bold transition-colors"
+            >
+              Archive Completed
+            </button>
+          )}
+          <Link
+            href={sportParam ? `/admin/events/new?sport=${sportParam}` : '/admin/events/new'}
+            className="btn-touch btn-primary px-6 py-3"
+          >
+            + New {sportLabel} Event
+          </Link>
+        </div>
       </div>
+
+      {/* Archive Confirmation Dialog */}
+      {showArchiveConfirm && (
+        <div className="mb-6 bg-red-900 p-4 rounded-lg">
+          <p className="text-white mb-3 text-sm">
+            Archive all completed and cancelled events? This removes the events, their tournaments, and match history. Players are kept.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={archiveCompleted}
+              disabled={archiving}
+              className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 rounded font-bold disabled:opacity-50 transition-colors"
+            >
+              {archiving ? 'Archiving...' : 'Confirm Archive'}
+            </button>
+            <button
+              onClick={() => setShowArchiveConfirm(false)}
+              disabled={archiving}
+              className="flex-1 py-2 bg-gray-600 hover:bg-gray-700 rounded font-bold disabled:opacity-50 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Archive Success/Error Message */}
+      {archiveMessage && (
+        <div className={`mb-6 p-4 rounded-lg text-sm font-medium ${
+          archiveMessage.startsWith('Error') ? 'bg-red-900 text-red-200' : 'bg-green-900 text-green-200'
+        }`}>
+          {archiveMessage}
+        </div>
+      )}
 
       {/* Sport Filter Tabs */}
       <div className="flex gap-2 mb-6">

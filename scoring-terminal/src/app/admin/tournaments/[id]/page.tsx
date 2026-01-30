@@ -165,7 +165,23 @@ export default function TournamentDetailPage() {
     setError('')
 
     try {
-      const response = await fetch(`${getApiUrl()}/tournaments/${tournamentId}/start`, {
+      // Auto-check-in all paid entries that aren't checked in yet
+      const uncheckedPaid = entries.filter(e => e.paid && !e.checked_in)
+      for (const entry of uncheckedPaid) {
+        const checkInResp = await fetch(`${getApiUrl()}/tournaments/${tournamentId}/entries/${entry.id}/check-in`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        })
+        if (!checkInResp.ok) {
+          const data = await checkInResp.json()
+          console.warn(`Check-in warning for entry ${entry.id}:`, data.detail)
+        }
+      }
+
+      // Generate bracket (starts the tournament)
+      const response = await fetch(`${getApiUrl()}/tournaments/${tournamentId}/generate-bracket`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

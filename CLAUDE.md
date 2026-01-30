@@ -9,6 +9,7 @@ This document provides guidance for AI assistants (like Claude Code) working wit
 **Setup Date:** 2026-01-27
 **Local Path:** ~/DartTournament
 **Repository:** https://github.com/dfultonthebar/dart-tournament-software
+**Git Identity:** Dan Fulton <dan@thebar.com>
 
 ### Quick Start (Single Machine, No Docker)
 

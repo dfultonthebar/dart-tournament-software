@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from uuid import UUID
@@ -209,9 +209,9 @@ async def register_for_tournament(
     # Check max players
     if tournament.max_players:
         result = await db.execute(
-            select(TournamentEntry).where(TournamentEntry.tournament_id == tournament_id)
+            select(func.count()).select_from(TournamentEntry).where(TournamentEntry.tournament_id == tournament_id)
         )
-        current_count = len(result.scalars().all())
+        current_count = result.scalar()
         if current_count >= tournament.max_players:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -279,9 +279,9 @@ async def add_player_to_tournament(
     # Check max players
     if tournament.max_players:
         result = await db.execute(
-            select(TournamentEntry).where(TournamentEntry.tournament_id == tournament_id)
+            select(func.count()).select_from(TournamentEntry).where(TournamentEntry.tournament_id == tournament_id)
         )
-        current_count = len(result.scalars().all())
+        current_count = result.scalar()
         if current_count >= tournament.max_players:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -639,6 +639,7 @@ async def _generate_round_robin_bracket(
     match_number = 1
 
     # Generate all pairings
+    matches_to_create = []
     for i in range(num_players):
         for j in range(i + 1, num_players):
             match = Match(
@@ -649,27 +650,32 @@ async def _generate_round_robin_bracket(
                 status=MatchStatus.PENDING
             )
             db.add(match)
-            await db.flush()
-
-            # Add both players
-            mp1 = MatchPlayer(
-                match_id=match.id,
-                player_id=entries[i].player_id,
-                position=1,
-                sets_won=0,
-                legs_won=0
-            )
-            mp2 = MatchPlayer(
-                match_id=match.id,
-                player_id=entries[j].player_id,
-                position=2,
-                sets_won=0,
-                legs_won=0
-            )
-            db.add(mp1)
-            db.add(mp2)
-
+            matches_to_create.append((match, entries[i].player_id, entries[j].player_id))
             match_number += 1
+
+    # Single flush to get all match IDs
+    await db.flush()
+
+    # Add all match players
+    for match, player1_id, player2_id in matches_to_create:
+        mp1 = MatchPlayer(
+            match_id=match.id,
+            player_id=player1_id,
+            position=1,
+            sets_won=0,
+            legs_won=0
+        )
+        mp2 = MatchPlayer(
+            match_id=match.id,
+            player_id=player2_id,
+            position=2,
+            sets_won=0,
+            legs_won=0
+        )
+        db.add(mp1)
+        db.add(mp2)
+
+    await db.flush()
 
 
 async def _generate_lucky_draw_doubles_bracket(

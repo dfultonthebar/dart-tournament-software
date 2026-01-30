@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import RegistrationQRCode from '@/components/RegistrationQRCode'
 
@@ -187,7 +187,7 @@ export default function Home() {
     return players[playerId]?.name || 'TBD'
   }
 
-  function getMatchesByRound(): Map<number, Match[]> {
+  const getMatchesByRound = useMemo((): Map<number, Match[]> => {
     const rounds = new Map<number, Match[]>()
     matches.forEach(match => {
       const roundMatches = rounds.get(match.round_number) || []
@@ -198,7 +198,7 @@ export default function Home() {
       rounds.set(round, roundMatches.sort((a, b) => a.match_number - b.match_number))
     })
     return rounds
-  }
+  }, [matches])
 
   function getRoundName(round: number, totalRounds: number): string {
     const remaining = totalRounds - round + 1
@@ -279,7 +279,7 @@ export default function Home() {
   }
 
   const currentTournament = tournaments[currentIndex]
-  const roundsMap = getMatchesByRound()
+  const roundsMap = getMatchesByRound
   const rounds = Array.from(roundsMap.keys()).sort((a, b) => a - b)
 
   // Calculate total rounds based on number of first-round matches
@@ -341,19 +341,19 @@ export default function Home() {
             <>
               <button
                 onClick={goToPrevSlide}
-                className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600"
+                className="px-4 py-3 min-h-[44px] min-w-[44px] bg-gray-700 rounded-lg hover:bg-gray-600"
               >
                 &larr;
               </button>
               <button
                 onClick={() => setIsPaused(!isPaused)}
-                className={`px-4 py-2 rounded-lg ${isPaused ? 'bg-green-600' : 'bg-yellow-600'}`}
+                className={`px-4 py-3 min-h-[44px] min-w-[44px] rounded-lg ${isPaused ? 'bg-green-600' : 'bg-yellow-600'}`}
               >
                 {isPaused ? 'Play' : 'Pause'}
               </button>
               <button
                 onClick={goToNextSlide}
-                className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600"
+                className="px-4 py-3 min-h-[44px] min-w-[44px] bg-gray-700 rounded-lg hover:bg-gray-600"
               >
                 &rarr;
               </button>
@@ -384,7 +384,7 @@ export default function Home() {
 
         <button
           onClick={() => setShowSettings(true)}
-          className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600"
+          className="px-4 py-3 min-h-[44px] min-w-[44px] bg-gray-700 rounded-lg hover:bg-gray-600"
           title="Settings"
         >
           ⚙

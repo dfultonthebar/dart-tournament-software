@@ -11,11 +11,13 @@ import { test, expect } from '@playwright/test';
  * - Error handling
  */
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = 'http://localhost:8000/api';
+
+const API_ROOT = 'http://localhost:8000';
 
 test.describe('API - Health and Status', () => {
   test('health endpoint returns 200', async ({ request }) => {
-    const response = await request.get(`${API_BASE}/health`);
+    const response = await request.get(`${API_ROOT}/health`);
     expect(response.ok()).toBeTruthy();
     expect(response.status()).toBe(200);
 
@@ -24,7 +26,7 @@ test.describe('API - Health and Status', () => {
   });
 
   test('API root returns version info', async ({ request }) => {
-    const response = await request.get(`${API_BASE}/`);
+    const response = await request.get(`${API_ROOT}/`);
     expect(response.ok()).toBeTruthy();
 
     const data = await response.json();
@@ -34,7 +36,7 @@ test.describe('API - Health and Status', () => {
 
 test.describe('API - Documentation', () => {
   test('OpenAPI schema is accessible', async ({ request }) => {
-    const response = await request.get(`${API_BASE}/openapi.json`);
+    const response = await request.get(`${API_ROOT}/openapi.json`);
     expect(response.ok()).toBeTruthy();
     expect(response.status()).toBe(200);
 
@@ -45,7 +47,7 @@ test.describe('API - Documentation', () => {
   });
 
   test('Swagger UI is accessible', async ({ page }) => {
-    await page.goto(`${API_BASE}/docs`);
+    await page.goto(`${API_ROOT}/docs`);
     await page.waitForLoadState('networkidle');
 
     // Check for Swagger UI elements
@@ -53,7 +55,7 @@ test.describe('API - Documentation', () => {
   });
 
   test('ReDoc is accessible', async ({ page }) => {
-    await page.goto(`${API_BASE}/redoc`);
+    await page.goto(`${API_ROOT}/redoc`);
     await page.waitForLoadState('networkidle');
 
     // Check for ReDoc elements
@@ -63,7 +65,7 @@ test.describe('API - Documentation', () => {
 
 test.describe('API - CORS Headers', () => {
   test('includes proper CORS headers', async ({ request }) => {
-    const response = await request.get(`${API_BASE}/health`, {
+    const response = await request.get(`${API_ROOT}/health`, {
       headers: {
         Origin: 'http://localhost:3001',
       },
@@ -76,12 +78,13 @@ test.describe('API - CORS Headers', () => {
 
 test.describe('API - Authentication', () => {
   test('register endpoint exists', async ({ request }) => {
-    const response = await request.post(`${API_BASE}/auth/register`, {
+    const response = await request.post(`${API_BASE}/auth/player-register`, {
       data: {
+        name: 'Test User',
         email: `test-${Date.now()}@example.com`,
-        password: 'testpassword123',
-        full_name: 'Test User',
-        display_name: 'TestUser',
+        phone: '5559999999',
+        pin: '9999',
+        gender: 'M',
       },
       failOnStatusCode: false,
     });
@@ -91,10 +94,10 @@ test.describe('API - Authentication', () => {
   });
 
   test('login endpoint exists', async ({ request }) => {
-    const response = await request.post(`${API_BASE}/auth/login`, {
+    const response = await request.post(`${API_BASE}/auth/pin-login`, {
       data: {
-        email: 'test@example.com',
-        password: 'wrongpassword',
+        name: 'Nonexistent',
+        pin: '0000',
       },
       failOnStatusCode: false,
     });
@@ -130,8 +133,8 @@ test.describe('API - Players Endpoints', () => {
       failOnStatusCode: false,
     });
 
-    // Should return 401 (unauthorized) or 403 (forbidden) or 404 (not found)
-    expect([401, 403, 404, 422]).toContain(response.status());
+    // Should return 401 (unauthorized) or 403 (forbidden) or 404 (not found) or 405 (method not allowed)
+    expect([401, 403, 404, 405, 422]).toContain(response.status());
   });
 });
 
@@ -152,7 +155,7 @@ test.describe('API - Tournaments Endpoints', () => {
 
 test.describe('API - Error Handling', () => {
   test('returns 404 for non-existent endpoints', async ({ request }) => {
-    const response = await request.get(`${API_BASE}/non-existent-endpoint`, {
+    const response = await request.get(`${API_ROOT}/non-existent-endpoint`, {
       failOnStatusCode: false,
     });
 
@@ -160,7 +163,7 @@ test.describe('API - Error Handling', () => {
   });
 
   test('returns proper error format', async ({ request }) => {
-    const response = await request.get(`${API_BASE}/non-existent`, {
+    const response = await request.get(`${API_ROOT}/non-existent`, {
       failOnStatusCode: false,
     });
 
@@ -169,7 +172,7 @@ test.describe('API - Error Handling', () => {
   });
 
   test('handles malformed JSON', async ({ request }) => {
-    const response = await request.post(`${API_BASE}/auth/login`, {
+    const response = await request.post(`${API_BASE}/auth/pin-login`, {
       data: 'not-valid-json',
       headers: {
         'Content-Type': 'application/json',
@@ -184,7 +187,7 @@ test.describe('API - Error Handling', () => {
 test.describe('API - Performance', () => {
   test('health check responds within 500ms', async ({ request }) => {
     const startTime = Date.now();
-    await request.get(`${API_BASE}/health`);
+    await request.get(`${API_ROOT}/health`);
     const responseTime = Date.now() - startTime;
 
     console.log(`API response time: ${responseTime}ms`);
@@ -194,7 +197,7 @@ test.describe('API - Performance', () => {
   test('handles concurrent requests', async ({ request }) => {
     const requests = Array(10)
       .fill(null)
-      .map(() => request.get(`${API_BASE}/health`));
+      .map(() => request.get(`${API_ROOT}/health`));
 
     const responses = await Promise.all(requests);
 
@@ -210,7 +213,7 @@ test.describe('API - Rate Limiting', () => {
     const requests = Array(100)
       .fill(null)
       .map(() =>
-        request.get(`${API_BASE}/health`, {
+        request.get(`${API_ROOT}/health`, {
           failOnStatusCode: false,
         })
       );

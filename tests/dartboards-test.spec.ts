@@ -23,14 +23,9 @@ test.describe('Dartboards Feature Tests', () => {
     // Step 2: Login with Admin credentials
     console.log('Step 2: Logging in as Admin...');
 
-    // Fill in the Name field (first input in the form)
-    const nameInput = page.locator('form input[type="text"]').first();
-    await nameInput.fill('Admin');
-
-    // Fill the second input (PIN field)
-    const allInputs = page.locator('form input');
-    const pinInput = allInputs.nth(1);
-    await pinInput.fill('1972');
+    // Fill in the Name and PIN fields
+    await page.getByPlaceholder('Admin').fill('Admin');
+    await page.getByPlaceholder('••••').fill('1972');
 
     await page.screenshot({ path: `${SCREENSHOT_DIR}/02-login-filled.png`, fullPage: true });
 
@@ -59,16 +54,16 @@ test.describe('Dartboards Feature Tests', () => {
       throw new Error('Add form not visible - user may not be authenticated');
     }
 
-    // Step 5: Add a new dartboard (Number: 10, Name: "Test Board")
+    // Step 5: Add a new dartboard (Number: 10, Name: "Test Board 99")
     console.log('Step 5: Adding new dartboard...');
 
     // Fill the Board Number field
     const boardNumberInput = page.locator('input[type="number"]').first();
-    await boardNumberInput.fill('10');
+    await boardNumberInput.fill('99');
 
     // Fill the Name field (find the text input inside the form)
     const boardNameInput = page.locator('input[type="text"]').first();
-    await boardNameInput.fill('Test Board');
+    await boardNameInput.fill('Test Board 99 99');
 
     await page.screenshot({ path: `${SCREENSHOT_DIR}/05-form-filled.png`, fullPage: true });
 
@@ -83,12 +78,12 @@ test.describe('Dartboards Feature Tests', () => {
     // Step 6: Verify dartboard appears in list
     console.log('Step 6: Verifying dartboard appears in list...');
 
-    // Check for Board 10
-    const board10Visible = await page.locator('text=Board 10').isVisible();
-    const testBoardVisible = await page.locator('text=Test Board').isVisible();
+    // Check for Board 99
+    const board10Visible = await page.getByText('Board 99', { exact: true }).first().isVisible();
+    const testBoardVisible = await page.getByText('Test Board 99').first().isVisible();
 
-    console.log('Board 10 visible:', board10Visible);
-    console.log('Test Board visible:', testBoardVisible);
+    console.log('Board 99 visible:', board10Visible);
+    console.log('Test Board 99 visible:', testBoardVisible);
 
     await page.screenshot({ path: `${SCREENSHOT_DIR}/07-verify-added.png`, fullPage: true });
 
@@ -96,10 +91,10 @@ test.describe('Dartboards Feature Tests', () => {
     expect(board10Visible || testBoardVisible).toBeTruthy();
     console.log('SUCCESS: Dartboard was added successfully!');
 
-    // Step 7: Delete the test dartboard (Board 10)
+    // Step 7: Delete the test dartboard (Board 99)
     console.log('Step 7: Attempting to delete test dartboard...');
 
-    // Scroll down to see Board 10
+    // Scroll down to see Board 99
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await page.waitForTimeout(500);
 
@@ -108,13 +103,13 @@ test.describe('Dartboards Feature Tests', () => {
     const itemCount = await gridItems.count();
     console.log('Grid items count:', itemCount);
 
-    // Find the item that contains "Board 10"
+    // Find the item that contains "Board 99"
     let board10Index = -1;
     for (let i = 0; i < itemCount; i++) {
       const itemText = await gridItems.nth(i).textContent();
-      if (itemText && itemText.includes('Board 10')) {
+      if (itemText && itemText.includes('Board 99')) {
         board10Index = i;
-        console.log(`Found Board 10 at index ${i}`);
+        console.log(`Found Board 99 at index ${i}`);
         break;
       }
     }
@@ -141,7 +136,7 @@ test.describe('Dartboards Feature Tests', () => {
         console.log('Confirm Delete button not visible');
       }
     } else {
-      console.log('Board 10 not found in grid - may have been deleted already');
+      console.log('Board 99 not found in grid - may have been deleted already');
     }
 
     await page.screenshot({ path: `${SCREENSHOT_DIR}/10-after-delete.png`, fullPage: true });
@@ -161,9 +156,9 @@ test.describe('Dartboards Feature Tests', () => {
       console.log('Error message visible:', errorText);
     }
 
-    // Check if Board 10 is still visible
-    const board10StillVisible = await page.locator('text=Board 10').isVisible();
-    console.log('Board 10 still visible:', board10StillVisible);
+    // Check if Board 99 is still visible
+    const board10StillVisible = await page.getByText('Board 99', { exact: true }).first().isVisible();
+    console.log('Board 99 still visible:', board10StillVisible);
 
     await page.screenshot({ path: `${SCREENSHOT_DIR}/11-final-state.png`, fullPage: true });
 
@@ -175,7 +170,7 @@ test.describe('Dartboards Feature Tests', () => {
     console.log('\n=== TEST SUMMARY ===');
     console.log('1. Login: SUCCESS');
     console.log('2. Navigate to Dartboards: SUCCESS');
-    console.log('3. Add Dartboard (Board 10, Test Board): SUCCESS');
+    console.log('3. Add Dartboard (Board 99, Test Board 99): SUCCESS');
     console.log(`4. Delete Dartboard: ${deleteSuccessMsg ? 'SUCCESS' : (board10StillVisible ? 'BACKEND ERROR (Internal Server Error)' : 'SUCCESS')}`);
     console.log('5. Screenshots saved to:', SCREENSHOT_DIR);
     console.log('====================\n');

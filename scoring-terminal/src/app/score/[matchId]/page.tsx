@@ -60,16 +60,17 @@ export default function ScoreMatchPage() {
       setLoading(true)
       setError('')
 
-      // Fetch match data
-      const matchResponse = await fetch(`${getApiUrl()}/matches/${matchId}`)
+      // Fetch match data and players in parallel
+      const [matchResponse, playersResponse] = await Promise.all([
+        fetch(`${getApiUrl()}/matches/${matchId}`),
+        fetch(`${getApiUrl()}/players`)
+      ])
       if (!matchResponse.ok) {
         throw new Error('Failed to load match')
       }
       const matchData: Match = await matchResponse.json()
       setMatch(matchData)
 
-      // Fetch players
-      const playersResponse = await fetch(`${getApiUrl()}/players`)
       if (!playersResponse.ok) {
         throw new Error('Failed to load players')
       }
@@ -78,7 +79,7 @@ export default function ScoreMatchPage() {
       playersData.forEach(p => playerMap[p.id] = p)
       setPlayers(playerMap)
 
-      // Fetch tournament name
+      // Fetch tournament name (depends on matchData.tournament_id)
       const tournamentResponse = await fetch(`${getApiUrl()}/tournaments/${matchData.tournament_id}`)
       if (tournamentResponse.ok) {
         const tournamentData: Tournament = await tournamentResponse.json()

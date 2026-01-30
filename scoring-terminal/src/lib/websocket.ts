@@ -10,6 +10,8 @@ class WebSocketClient {
   private reconnectDelay = 1000;
   private eventHandlers: Map<string, Set<EventHandler>> = new Map();
   private subscriptions: Set<string> = new Set();
+  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private pingInterval: ReturnType<typeof setInterval> | null = null;
 
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -54,7 +56,7 @@ class WebSocketClient {
 
       console.log(`Reconnecting in ${delay}ms... (attempt ${this.reconnectAttempts})`);
 
-      setTimeout(() => {
+      this.reconnectTimeout = setTimeout(() => {
         this.connect();
       }, delay);
     } else {
@@ -63,6 +65,14 @@ class WebSocketClient {
   }
 
   disconnect() {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -135,7 +145,7 @@ if (typeof window !== 'undefined') {
   wsClient.connect();
 
   // Ping every 30 seconds to keep connection alive
-  setInterval(() => {
+  wsClient.pingInterval = setInterval(() => {
     wsClient.ping();
   }, 30000);
 }

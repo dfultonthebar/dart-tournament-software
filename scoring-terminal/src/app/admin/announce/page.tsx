@@ -104,16 +104,17 @@ export default function AnnouncerBoardPage() {
       setTournamentMap(tMap)
 
       // Load teams for all active tournaments (for doubles support)
+      const teamResults = await Promise.all(
+        tournamentsData.map(t =>
+          fetch(`${getApiUrl()}/tournaments/${t.id}/teams`)
+            .then(r => r.ok ? r.json() : [])
+            .catch(() => [])
+        )
+      )
       const allTeams: Record<string, Team> = {}
-      for (const t of tournamentsData) {
-        try {
-          const teamsRes = await fetch(`${getApiUrl()}/tournaments/${t.id}/teams`)
-          if (teamsRes.ok) {
-            const teamsData: Team[] = await teamsRes.json()
-            teamsData.forEach(team => { allTeams[team.id] = team })
-          }
-        } catch { /* ignore */ }
-      }
+      teamResults.forEach((teamsData: Team[]) => {
+        teamsData.forEach(team => { allTeams[team.id] = team })
+      })
       setTeamMap(allTeams)
 
       setLastUpdated(new Date())

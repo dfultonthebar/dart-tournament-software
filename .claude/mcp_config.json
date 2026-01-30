@@ -1,5 +1,14 @@
 {
   "mcpServers": {
+    "memory": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ],
+      "description": "Persistent memory and knowledge graph for storing project context across sessions",
+      "env": {}
+    },
     "playwright": {
       "command": "npx",
       "args": [

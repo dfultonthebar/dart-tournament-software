@@ -5,17 +5,27 @@ test.describe('Payment Tracking', () => {
     // Go to admin login
     await page.goto('http://localhost:3001/admin/login');
 
-    // Login as admin
-    await page.fill('input[type="text"]', 'admin');
-    await page.fill('input[type="password"]', 'TheBar#1');
+    // Login as admin with PIN
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(500);
+    await page.getByPlaceholder('Admin').fill('Admin');
+    await page.getByPlaceholder('••••').fill('1972');
     await page.click('button[type="submit"]');
 
-    // Wait for redirect to admin page
-    await page.waitForURL('**/admin');
+    // Wait for redirect to admin sport selection
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(2000);
 
-    // Go to tournaments list
-    await page.click('text=Manage Tournaments');
-    await page.waitForURL('**/admin/tournaments');
+    // Click on Darts sport to get to darts admin
+    const dartsLink = page.locator('a[href*="darts"]').first();
+    if (await dartsLink.isVisible()) {
+      await dartsLink.click();
+      await page.waitForLoadState('networkidle');
+    }
+
+    // Navigate to tournaments page
+    await page.goto('http://localhost:3001/admin/tournaments');
+    await page.waitForLoadState('networkidle');
 
     // Click on first tournament
     await page.click('a[href*="/admin/tournaments/"]');

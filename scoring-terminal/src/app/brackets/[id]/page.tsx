@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { Tournament, Player, MatchWithPlayers, MatchPlayerInfo, MatchStatus, Team } from '@shared/types'
@@ -56,7 +56,7 @@ export default function BracketPage() {
     return players[playerId]?.name || 'TBD'
   }
 
-  function getMatchesByRound(): Map<number, MatchWithPlayers[]> {
+  const getMatchesByRound = useMemo(() => {
     const rounds = new Map<number, MatchWithPlayers[]>()
     matches.forEach(match => {
       const roundMatches = rounds.get(match.round_number) || []
@@ -67,7 +67,7 @@ export default function BracketPage() {
       rounds.set(round, roundMatches.sort((a, b) => a.match_number - b.match_number))
     })
     return rounds
-  }
+  }, [matches])
 
   function getRoundName(round: number, totalRounds: number): string {
     const remaining = totalRounds - round + 1
@@ -90,7 +90,7 @@ export default function BracketPage() {
     )
   }
 
-  const roundsMap = getMatchesByRound()
+  const roundsMap = getMatchesByRound
   const rounds = Array.from(roundsMap.keys()).sort((a, b) => a - b)
   const totalRounds = Math.max(...rounds, 1)
 

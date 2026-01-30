@@ -17,29 +17,36 @@ test.describe('Simple Scoring Feature Test', () => {
 
     // Step 2: Login with Admin credentials
     console.log('Step 2: Logging in as Admin...');
-    await page.fill('input[name="name"], input[placeholder*="name" i], input[type="text"]', 'Admin');
+    // PIN mode login: wait for auth context to finish loading and form to appear
+    await page.waitForSelector('form', { timeout: 10000 });
+    await page.waitForTimeout(500);  // Extra wait for React hydration
+
+    // Fill name field — first text input in the form
+    const nameInput = page.locator('form input[type="text"]').first();
+    await nameInput.waitFor({ state: 'visible', timeout: 5000 });
+    await nameInput.click();
+    await nameInput.fill('Admin');
     await page.screenshot({ path: `${SCREENSHOT_DIR}/02-name-entered.png`, fullPage: true });
 
-    // Enter PIN - might be individual inputs or a single field
-    const pinInputs = await page.locator('input[type="password"], input[inputmode="numeric"], input[name*="pin" i]').all();
-    if (pinInputs.length >= 4) {
-      // Individual PIN inputs
-      const pin = '1972';
-      for (let i = 0; i < 4; i++) {
-        await pinInputs[i].fill(pin[i]);
-      }
-    } else {
-      // Single PIN input
-      await page.fill('input[type="password"], input[name*="pin" i]', '1972');
-    }
+    // Fill PIN field — second input in the form
+    const pinInput = page.locator('form input[type="text"]').nth(1);
+    await pinInput.click();
+    await pinInput.fill('1972');
     await page.screenshot({ path: `${SCREENSHOT_DIR}/03-credentials-entered.png`, fullPage: true });
 
     // Submit login
-    await page.click('button[type="submit"], button:has-text("Login"), button:has-text("Sign In")');
+    await page.locator('button[type="submit"]').click();
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(3000);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/04-after-login.png`, fullPage: true });
     console.log('Screenshot: 04-after-login.png');
+
+    // Select Darts sport if on sport selection page
+    const dartsLink = page.locator('a[href*="darts"]').first();
+    if (await dartsLink.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await dartsLink.click();
+      await page.waitForLoadState('networkidle');
+    }
 
     // Step 3: Go to create new tournament page
     console.log('Step 3: Navigating to create tournament page...');
@@ -52,39 +59,43 @@ test.describe('Simple Scoring Feature Test', () => {
     // Step 4: Create tournament with specified settings
     console.log('Step 4: Creating tournament...');
 
-    // Fill tournament name
-    await page.fill('input[name="name"], input[placeholder*="name" i], input[id*="name" i]', 'Scoring Test Tournament');
+    // Tournament form uses React controlled inputs without name/id attributes
+    // First select is Event dropdown (required), then text input for name
+    await page.waitForTimeout(1000);
+
+    // Select an event first (required field — first select in the form)
+    const eventSelect = page.locator('form select').first();
+    if (await eventSelect.isVisible()) {
+      const options = await eventSelect.locator('option').allTextContents();
+      console.log('Available event options:', options);
+      // Select the first non-placeholder option
+      if (options.length > 1) {
+        await eventSelect.selectOption({ index: 1 });
+      }
+    }
+
+    // Fill tournament name — first text input in the form
+    const tournamentNameInput = page.locator('form input[type="text"]').first();
+    await tournamentNameInput.click();
+    await tournamentNameInput.fill('Scoring Test Tournament');
     await page.screenshot({ path: `${SCREENSHOT_DIR}/06-tournament-name.png`, fullPage: true });
 
-    // Select Game Type: 501
-    const gameTypeSelect = page.locator('select[name*="game" i], select[id*="game" i], [data-testid*="game-type"]').first();
+    // Game Type select is the second select in the form (501 is already default)
+    const gameTypeSelect = page.locator('form select').nth(1);
     if (await gameTypeSelect.isVisible()) {
       await gameTypeSelect.selectOption({ label: '501' });
-    } else {
-      // Try clicking on a dropdown/button if not a select
-      const gameTypeButton = page.locator('button:has-text("Game Type"), [aria-label*="game type" i]').first();
-      if (await gameTypeButton.isVisible()) {
-        await gameTypeButton.click();
-        await page.click('text=501');
-      }
     }
     await page.screenshot({ path: `${SCREENSHOT_DIR}/07-game-type-selected.png`, fullPage: true });
 
-    // Select Format: Single Elimination
-    const formatSelect = page.locator('select[name*="format" i], select[id*="format" i], [data-testid*="format"]').first();
+    // Format select is the third select in the form (Single Elimination is already default)
+    const formatSelect = page.locator('form select').nth(2);
     if (await formatSelect.isVisible()) {
       await formatSelect.selectOption({ label: 'Single Elimination' });
-    } else {
-      const formatButton = page.locator('button:has-text("Format"), [aria-label*="format" i]').first();
-      if (await formatButton.isVisible()) {
-        await formatButton.click();
-        await page.click('text=Single Elimination');
-      }
     }
     await page.screenshot({ path: `${SCREENSHOT_DIR}/08-format-selected.png`, fullPage: true });
 
     // Submit tournament creation
-    await page.click('button[type="submit"], button:has-text("Create"), button:has-text("Save")');
+    await page.click('button:has-text("Create Tournament"), button[type="submit"]');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(2000);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/09-tournament-created.png`, fullPage: true });
