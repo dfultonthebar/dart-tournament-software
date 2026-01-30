@@ -232,14 +232,22 @@ async def update_match(
         if dartboard:
             dartboard.is_available = True
 
+    # Flush before advancement so winner_id/status are persisted to DB
+    # (advancement functions refresh the match from DB)
+    await db.flush()
+
     # If match is completed with a winner, advance them to next round match
     if match.status == MatchStatus.COMPLETED:
         if match.winner_team_id:
             await _advance_team_in_bracket(match, db)
         elif match.winner_id:
-            await _advance_winner_in_bracket(match, db)
+            bp = match.bracket_position or ""
+            if bp.startswith("WR") or bp.startswith("LR") or bp.startswith("GF"):
+                await _advance_double_elim_winner(match, db)
+            else:
+                await _advance_winner_in_bracket(match, db)
 
-    await db.flush()
+    await db.commit()
     await db.refresh(match)
 
     return match
@@ -550,6 +558,386 @@ async def _check_team_next_match_cascade(match: Match, db: AsyncSession):
         await _check_team_bye_cascade(next_match, db)
 
 
+# ===== Double Elimination Advancement =====
+
+def _get_loser_id(match: Match) -> str | None:
+    """Get the non-winner player_id from a completed match."""
+    if not match.winner_id:
+        return None
+    for mp in match.match_players:
+        if mp.player_id != match.winner_id:
+            return mp.player_id
+    return None
+
+
+async def _place_player_in_match(
+    player_id, bracket_position: str, position: int, tournament_id, db: AsyncSession
+):
+    """Add a player to a match identified by bracket_position at the given position (1 or 2).
+    After placing, check if the match should auto-complete as a bye."""
+    result = await db.execute(
+        select(Match)
+        .options(selectinload(Match.match_players))
+        .where(
+            Match.tournament_id == tournament_id,
+            Match.bracket_position == bracket_position,
+        )
+        .with_for_update()
+    )
+    target_match = result.scalar_one_or_none()
+    if not target_match:
+        return
+
+    # Check if already placed
+    existing_ids = [mp.player_id for mp in target_match.match_players]
+    if player_id in existing_ids:
+        return
+
+    mp = MatchPlayer(
+        match_id=target_match.id,
+        player_id=player_id,
+        position=position,
+        sets_won=0,
+        legs_won=0,
+    )
+    db.add(mp)
+    await db.flush()
+
+    await _check_double_elim_bye_cascade(target_match, db)
+
+
+async def _all_feeders_done(match: Match, db: AsyncSession) -> bool:
+    """Determine feeder matches from bracket_position and check if all are completed."""
+    bp = match.bracket_position or ""
+    tournament_id = match.tournament_id
+
+    feeder_positions: list[str] = []
+
+    wb_match = re.match(r'WR(\d+)M(\d+)', bp)
+    lb_match = re.match(r'LR(\d+)M(\d+)', bp)
+
+    if wb_match:
+        wr = int(wb_match.group(1))
+        mi = int(wb_match.group(2))
+        if wr >= 2:
+            feeder_positions = [f"WR{wr-1}M{2*mi-1}", f"WR{wr-1}M{2*mi}"]
+    elif lb_match:
+        lr = int(lb_match.group(1))
+        mi = int(lb_match.group(2))
+        if lr == 1:
+            # LR1 feeders are WR1 match pairs
+            feeder_positions = [f"WR1M{2*mi-1}", f"WR1M{2*mi}"]
+        elif lr % 2 == 0:
+            # Even LR: pos 1 from LR(lr-1), pos 2 from WB drop-down
+            # Feeder 1: LR(lr-1)M{mi}
+            feeder_positions.append(f"LR{lr-1}M{mi}")
+            # Feeder 2: WB drop-down — depends on which WB round
+            # Even LR round lr corresponds to WB round k where lr = 2*(k-1), so k = lr//2 + 1
+            wb_round = lr // 2 + 1
+            feeder_positions.append(f"WR{wb_round}M{mi}")
+        else:
+            # Odd LR (>=3): two LR(lr-1) matches pair up
+            feeder_positions = [f"LR{lr-1}M{2*mi-1}", f"LR{lr-1}M{2*mi}"]
+    elif bp == "GF1":
+        # Feeders: WB final and LB final
+        # We need to find the actual WB final and LB final bracket positions
+        # WB final: highest WR round
+        wb_finals = await db.execute(
+            select(Match).where(
+                Match.tournament_id == tournament_id,
+                Match.bracket_position.like("WR%"),
+            ).order_by(Match.round_number.desc())
+        )
+        wb_final = wb_finals.scalars().first()
+        lb_finals = await db.execute(
+            select(Match).where(
+                Match.tournament_id == tournament_id,
+                Match.bracket_position.like("LR%"),
+            ).order_by(Match.round_number.desc())
+        )
+        lb_final = lb_finals.scalars().first()
+        if wb_final:
+            feeder_positions.append(wb_final.bracket_position)
+        if lb_final:
+            feeder_positions.append(lb_final.bracket_position)
+    elif bp == "GF2":
+        feeder_positions = ["GF1"]
+
+    if not feeder_positions:
+        return True  # No feeders (e.g. WR1) — consider done
+
+    result = await db.execute(
+        select(Match).where(
+            Match.tournament_id == tournament_id,
+            Match.bracket_position.in_(feeder_positions),
+        )
+    )
+    feeders = result.scalars().all()
+
+    if len(feeders) == 0:
+        return True
+    return all(f.status == MatchStatus.COMPLETED for f in feeders)
+
+
+async def _check_double_elim_bye_cascade(match: Match, db: AsyncSession):
+    """Auto-complete a double elimination match if it's a bye.
+
+    A match is a bye when all feeder matches are completed but only 0 or 1 player is present.
+    """
+    bp = match.bracket_position or ""
+
+    # Don't auto-complete GF matches as byes
+    if bp.startswith("GF"):
+        return
+
+    # WR1 byes are handled during bracket generation
+    if bp.startswith("WR1M"):
+        return
+
+    feeders_done = await _all_feeders_done(match, db)
+    if not feeders_done:
+        return
+
+    await db.refresh(match, attribute_names=["match_players"])
+    player_count = len(match.match_players)
+
+    if player_count == 1 and match.status == MatchStatus.PENDING:
+        match.status = MatchStatus.COMPLETED
+        match.completed_at = datetime.utcnow()
+        match.winner_id = match.match_players[0].player_id
+        await db.flush()
+        await db.refresh(match)
+        await _advance_double_elim_winner(match, db)
+    elif player_count == 0 and match.status == MatchStatus.PENDING:
+        match.status = MatchStatus.COMPLETED
+        match.completed_at = datetime.utcnow()
+        await db.flush()
+        # Cascade: check downstream matches
+        await _cascade_double_elim_empty(match, db)
+
+
+async def _cascade_double_elim_empty(match: Match, db: AsyncSession):
+    """After an empty match completes in double elim, cascade to downstream matches."""
+    bp = match.bracket_position or ""
+
+    # Find all downstream matches that this feeds into and check their bye status
+    downstream_positions: list[str] = []
+
+    wb_match = re.match(r'WR(\d+)M(\d+)', bp)
+    lb_match = re.match(r'LR(\d+)M(\d+)', bp)
+
+    if wb_match:
+        wr = int(wb_match.group(1))
+        mi = int(wb_match.group(2))
+        # Winner would go to next WB round
+        next_wb = f"WR{wr+1}M{(mi+1)//2}"
+        downstream_positions.append(next_wb)
+        # Loser would go to LB
+        if wr == 1:
+            downstream_positions.append(f"LR1M{(mi+1)//2}")
+        else:
+            lr_round = 2 * (wr - 1)
+            downstream_positions.append(f"LR{lr_round}M{mi}")
+    elif lb_match:
+        lr = int(lb_match.group(1))
+        mi = int(lb_match.group(2))
+        if lr % 2 == 1:
+            # Odd LR -> next even LR, same index
+            downstream_positions.append(f"LR{lr+1}M{mi}")
+        else:
+            # Even LR -> next odd LR, paired up
+            downstream_positions.append(f"LR{lr+1}M{(mi+1)//2}")
+
+    for pos in downstream_positions:
+        result = await db.execute(
+            select(Match)
+            .options(selectinload(Match.match_players))
+            .where(
+                Match.tournament_id == match.tournament_id,
+                Match.bracket_position == pos,
+            )
+        )
+        downstream = result.scalar_one_or_none()
+        if downstream:
+            await _check_double_elim_bye_cascade(downstream, db)
+
+
+async def _advance_double_elim_winner(match: Match, db: AsyncSession):
+    """Router: dispatch advancement based on bracket_position prefix.
+    Ensures match_players is loaded before routing."""
+    # Always refresh match_players to avoid lazy-load errors in async context
+    await db.refresh(match, attribute_names=["match_players"])
+
+    bp = match.bracket_position or ""
+    if bp.startswith("WR"):
+        await _advance_wb_match(match, db)
+    elif bp.startswith("LR"):
+        await _advance_lb_match(match, db)
+    elif bp == "GF1":
+        await _advance_gf1(match, db)
+    elif bp == "GF2":
+        await _advance_gf2(match, db)
+
+
+async def _advance_wb_match(match: Match, db: AsyncSession):
+    """Advance WB match: winner to next WB round, loser drops to LB."""
+    bp = match.bracket_position or ""
+    wb_m = re.match(r'WR(\d+)M(\d+)', bp)
+    if not wb_m:
+        return
+    wr = int(wb_m.group(1))
+    mi = int(wb_m.group(2))
+
+    tournament_id = match.tournament_id
+    winner_id = match.winner_id
+    loser_id = _get_loser_id(match)
+
+    # --- Advance winner to next WB round ---
+    next_wb_round = wr + 1
+    next_wb_mi = (mi + 1) // 2
+    next_wb_pos = 1 if mi % 2 == 1 else 2
+    next_wb_bp = f"WR{next_wb_round}M{next_wb_mi}"
+
+    # Check if next WB match exists
+    result = await db.execute(
+        select(Match).where(
+            Match.tournament_id == tournament_id,
+            Match.bracket_position == next_wb_bp,
+        )
+    )
+    next_wb_match = result.scalar_one_or_none()
+
+    if next_wb_match:
+        # Advance winner to next WB round
+        if winner_id:
+            await _place_player_in_match(winner_id, next_wb_bp, next_wb_pos, tournament_id, db)
+    else:
+        # This was the WB final — winner goes to GF1 position 1
+        if winner_id:
+            await _place_player_in_match(winner_id, "GF1", 1, tournament_id, db)
+
+    # --- Drop loser to Losers Bracket ---
+    if loser_id:
+        if wr == 1:
+            # WR1 losers go to LR1
+            # WR1M1 & WR1M2 losers -> LR1M1 (pos 1 & 2)
+            # WR1M3 & WR1M4 losers -> LR1M2 (pos 1 & 2)
+            lr1_mi = (mi + 1) // 2
+            lr1_pos = 1 if mi % 2 == 1 else 2
+            await _place_player_in_match(loser_id, f"LR1M{lr1_mi}", lr1_pos, tournament_id, db)
+        else:
+            # WR k (k>=2) losers go to LR(2*(k-1)) position 2
+            lr_round = 2 * (wr - 1)
+            lr_bp = f"LR{lr_round}M{mi}"
+
+            # Check if this is the WB Final (no next WB match)
+            if not next_wb_match:
+                # WB Final loser goes to LB Final position 2
+                # Find the LB final (highest LR round)
+                lb_final_result = await db.execute(
+                    select(Match).where(
+                        Match.tournament_id == tournament_id,
+                        Match.bracket_position.like("LR%"),
+                    ).order_by(Match.round_number.desc())
+                )
+                lb_final = lb_final_result.scalars().first()
+                if lb_final:
+                    await _place_player_in_match(loser_id, lb_final.bracket_position, 2, tournament_id, db)
+            else:
+                await _place_player_in_match(loser_id, lr_bp, 2, tournament_id, db)
+
+
+async def _advance_lb_match(match: Match, db: AsyncSession):
+    """Advance LB match: winner to next LB round (loser is eliminated)."""
+    bp = match.bracket_position or ""
+    lb_m = re.match(r'LR(\d+)M(\d+)', bp)
+    if not lb_m:
+        return
+    lr = int(lb_m.group(1))
+    mi = int(lb_m.group(2))
+
+    tournament_id = match.tournament_id
+    winner_id = match.winner_id
+    if not winner_id:
+        return
+
+    # Determine next destination
+    if lr % 2 == 1:
+        # Odd LR round -> next even LR round, same match index, position 1
+        next_bp = f"LR{lr+1}M{mi}"
+        next_pos = 1
+    else:
+        # Even LR round -> next odd LR round, matches pair up
+        next_mi = (mi + 1) // 2
+        next_pos = 1 if mi % 2 == 1 else 2
+        next_bp = f"LR{lr+1}M{next_mi}"
+
+    # Check if next LB match exists
+    result = await db.execute(
+        select(Match).where(
+            Match.tournament_id == tournament_id,
+            Match.bracket_position == next_bp,
+        )
+    )
+    next_match = result.scalar_one_or_none()
+
+    if next_match:
+        await _place_player_in_match(winner_id, next_bp, next_pos, tournament_id, db)
+    else:
+        # This was the LB Final — winner goes to GF1 position 2
+        await _place_player_in_match(winner_id, "GF1", 2, tournament_id, db)
+
+
+async def _advance_gf1(match: Match, db: AsyncSession):
+    """Handle GF1 completion.
+
+    If WB champion (position 1) wins: they are the champion, cancel GF2, complete tournament.
+    If LB champion (position 2) wins: populate GF2 with both players for a reset match.
+    """
+    tournament_id = match.tournament_id
+    winner_id = match.winner_id
+    if not winner_id:
+        return
+
+    # Determine which position won
+    winner_position = None
+    for mp in match.match_players:
+        if mp.player_id == winner_id:
+            winner_position = mp.position
+            break
+
+    if winner_position == 1:
+        # WB champion wins — they're the overall champion
+        # Cancel GF2
+        result = await db.execute(
+            select(Match).where(
+                Match.tournament_id == tournament_id,
+                Match.bracket_position == "GF2",
+            )
+        )
+        gf2 = result.scalar_one_or_none()
+        if gf2 and gf2.status == MatchStatus.PENDING:
+            gf2.status = MatchStatus.CANCELLED
+            await db.flush()
+
+        # Complete tournament
+        await _auto_complete_tournament(tournament_id, db)
+    else:
+        # LB champion wins GF1 — need a reset match (GF2)
+        loser_id = _get_loser_id(match)
+        # Both players go to GF2
+        # LB champion (winner of GF1) to position 2 (came from LB)
+        # WB champion (loser of GF1) to position 1 (came from WB)
+        if loser_id:
+            await _place_player_in_match(loser_id, "GF2", 1, tournament_id, db)
+        await _place_player_in_match(winner_id, "GF2", 2, tournament_id, db)
+
+
+async def _advance_gf2(match: Match, db: AsyncSession):
+    """Handle GF2 (reset match) completion. Winner is champion."""
+    await _auto_complete_tournament(match.tournament_id, db)
+
+
 @router.get("/{match_id}/games", response_model=List[GameResponse])
 async def list_match_games(
     match_id: UUID,
@@ -826,7 +1214,11 @@ async def report_match_result(
                         board.is_available = True
 
                 # Advance winner
-                await _advance_winner_in_bracket(match, db)
+                bp = match.bracket_position or ""
+                if bp.startswith("WR") or bp.startswith("LR") or bp.startswith("GF"):
+                    await _advance_double_elim_winner(match, db)
+                else:
+                    await _advance_winner_in_bracket(match, db)
 
             elif not i_won and other_player.reported_win:
                 # Reporter says lost, other says won -> other wins
@@ -844,7 +1236,11 @@ async def report_match_result(
                         board.is_available = True
 
                 # Advance winner
-                await _advance_winner_in_bracket(match, db)
+                bp = match.bracket_position or ""
+                if bp.startswith("WR") or bp.startswith("LR") or bp.startswith("GF"):
+                    await _advance_double_elim_winner(match, db)
+                else:
+                    await _advance_winner_in_bracket(match, db)
 
             else:
                 # Both claim win or both claim loss -> dispute
@@ -854,6 +1250,7 @@ async def report_match_result(
                 other_player.reported_win = None
 
     await db.flush()
+    await db.commit()
     await db.refresh(match)
 
     # Broadcast WebSocket notification

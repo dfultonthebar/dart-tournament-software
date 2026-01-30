@@ -234,7 +234,16 @@ export default function MatchesPage() {
             >
               <div className="flex justify-between items-start mb-4">
                 <span className="text-sm text-gray-400">
-                  Round {match.round_number} - Match {match.match_number}
+                  {(() => {
+                    const bp = match.bracket_position || ''
+                    const wrM = bp.match(/^WR(\d+)M(\d+)$/)
+                    const lrM = bp.match(/^LR(\d+)M(\d+)$/)
+                    if (wrM) return `WB Round ${wrM[1]} - Match ${wrM[2]}`
+                    if (lrM) return `LB Round ${lrM[1]} - Match ${lrM[2]}`
+                    if (bp === 'GF1') return 'Grand Final'
+                    if (bp === 'GF2') return 'Grand Final (Reset)'
+                    return `Round ${match.round_number} - Match ${match.match_number}`
+                  })()}
                 </span>
                 <span className={`px-2 py-1 rounded text-xs ${getStatusColor(match.status)}`}>
                   {match.status.toUpperCase()}

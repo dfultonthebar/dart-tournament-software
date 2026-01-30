@@ -160,9 +160,64 @@ export default function BracketPage() {
     return { round: parseInt(m[1]), matchInRound: parseInt(m[2]) }
   }
 
-  // Organize matches into bracket structure
+  // Detect double elimination: check for WR/LR/GF prefixes
+  const isDoubleElim = useMemo(() => {
+    return matches.some(m => {
+      const bp = m.bracket_position || ''
+      return bp.startsWith('WR') || bp.startsWith('LR') || bp.startsWith('GF')
+    })
+  }, [matches])
+
+  // Double elimination bracket data
+  const doubleElimData = useMemo(() => {
+    if (!isDoubleElim || matches.length === 0) return null
+
+    // Group WB matches by round
+    const wbRounds: Map<number, Match[]> = new Map()
+    const lbRounds: Map<number, Match[]> = new Map()
+    let gf1: Match | null = null
+    let gf2: Match | null = null
+
+    for (const match of matches) {
+      const bp = match.bracket_position || ''
+      const wrMatch = bp.match(/^WR(\d+)M(\d+)$/)
+      const lrMatch = bp.match(/^LR(\d+)M(\d+)$/)
+
+      if (wrMatch) {
+        const round = parseInt(wrMatch[1])
+        const list = wbRounds.get(round) || []
+        list.push(match)
+        wbRounds.set(round, list)
+      } else if (lrMatch) {
+        const round = parseInt(lrMatch[1])
+        const list = lbRounds.get(round) || []
+        list.push(match)
+        lbRounds.set(round, list)
+      } else if (bp === 'GF1') {
+        gf1 = match
+      } else if (bp === 'GF2') {
+        gf2 = match
+      }
+    }
+
+    // Sort each round by match index
+    const sortByIndex = (a: Match, b: Match) => {
+      const aM = (a.bracket_position || '').match(/M(\d+)/)
+      const bM = (b.bracket_position || '').match(/M(\d+)/)
+      return (aM ? parseInt(aM[1]) : 0) - (bM ? parseInt(bM[1]) : 0)
+    }
+    wbRounds.forEach((v, k) => wbRounds.set(k, v.sort(sortByIndex)))
+    lbRounds.forEach((v, k) => lbRounds.set(k, v.sort(sortByIndex)))
+
+    const wbRoundNums = Array.from(wbRounds.keys()).sort((a, b) => a - b)
+    const lbRoundNums = Array.from(lbRounds.keys()).sort((a, b) => a - b)
+
+    return { wbRounds, lbRounds, gf1, gf2, wbRoundNums, lbRoundNums }
+  }, [matches, isDoubleElim])
+
+  // Single elimination bracket data (original logic)
   const bracketData = useMemo(() => {
-    if (matches.length === 0) return null
+    if (isDoubleElim || matches.length === 0) return null
 
     const totalRounds = Math.max(...matches.map(m => m.round_number))
 
@@ -200,7 +255,7 @@ export default function BracketPage() {
     const finals = rounds.get(totalRounds)?.[0] || null
 
     return { totalRounds, leftRounds, rightRounds, finals, rounds }
-  }, [matches])
+  }, [matches, isDoubleElim])
 
   function getRoundName(round: number, totalRounds: number): string {
     const remaining = totalRounds - round + 1
@@ -208,6 +263,17 @@ export default function BracketPage() {
     if (remaining === 2) return 'Semis'
     if (remaining === 3) return 'Quarters'
     return `R${round}`
+  }
+
+  function getWBRoundName(round: number, totalWBRounds: number): string {
+    if (round === totalWBRounds) return 'WB Final'
+    if (round === totalWBRounds - 1) return 'WB Semis'
+    return `WB R${round}`
+  }
+
+  function getLBRoundName(round: number, totalLBRounds: number): string {
+    if (round === totalLBRounds) return 'LB Final'
+    return `LB R${round}`
   }
 
   // Determine if a match is a bye (completed with 0 or 1 players)
@@ -311,13 +377,140 @@ export default function BracketPage() {
     )
   }
 
-  if (!tournament || !bracketData) {
+  if (!tournament || (!bracketData && !doubleElimData)) {
     return (
       <main className="min-h-screen p-8">
         <p className="text-xl">Tournament not found</p>
         <Link href="/" className="text-blue-400 hover:underline mt-4 block">
           Back to tournaments
         </Link>
+      </main>
+    )
+  }
+
+  // Determine champion for double elimination
+  const getDoubleElimChampion = (): string | null => {
+    if (!doubleElimData) return null
+    const { gf1, gf2 } = doubleElimData
+    // If GF2 is completed, its winner is champion
+    if (gf2 && gf2.status === 'completed' && gf2.winner_id) {
+      return getPlayerName(gf2.winner_id)
+    }
+    // If GF1 completed and GF2 is cancelled, GF1 winner is champion
+    if (gf1 && gf1.status === 'completed' && gf1.winner_id) {
+      if (gf2 && gf2.status === 'cancelled') {
+        return getPlayerName(gf1.winner_id)
+      }
+    }
+    return null
+  }
+
+  // ===== Double Elimination Rendering =====
+  if (isDoubleElim && doubleElimData) {
+    const { wbRounds, lbRounds, gf1, gf2, wbRoundNums, lbRoundNums } = doubleElimData
+    const totalWBRounds = wbRoundNums.length
+    const totalLBRounds = lbRoundNums.length
+    const champion = getDoubleElimChampion()
+
+    return (
+      <main className="bracket-page" ref={containerRef}>
+        <div className="bk-header">
+          <Link href="/" className="text-blue-400 hover:underline text-sm">&larr; Back</Link>
+          <div className="text-center">
+            <h1 className="text-2xl font-bold">{tournament.name}</h1>
+            <div className="text-gray-400 text-sm">
+              {tournament.game_type.toUpperCase()} &bull; Double Elimination
+              {tournament.status === 'in_progress' && (
+                <span className="ml-2 px-2 py-0.5 bg-green-600 rounded text-xs">LIVE</span>
+              )}
+            </div>
+          </div>
+          <div className="text-sm text-gray-500">Best of {tournament.legs_to_win} legs</div>
+        </div>
+
+        {matches.length === 0 ? (
+          <div className="text-center py-12"><p className="text-xl text-gray-400">No matches yet</p></div>
+        ) : (
+          <div className="bk-viewport" style={{ alignItems: 'flex-start', overflowY: 'auto' }}>
+            <div ref={bracketRef} className="bk-double-bracket" style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}>
+
+              {/* Winners Bracket */}
+              <div className="bk-section">
+                <div className="bk-section-header">Winners Bracket</div>
+                <div className="bk-bracket-row">
+                  {wbRoundNums.map(r => (
+                    <div key={`wb-${r}`} className="bk-round" data-round={r}>
+                      <div className="bk-round-header">{getWBRoundName(r, totalWBRounds)}</div>
+                      <div className="bk-round-matches" style={{ gap: `${Math.pow(2, r - 1) * 4}px` }}>
+                        {(wbRounds.get(r) || []).map(m => renderMatch(m))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Grand Final */}
+              <div className="bk-section bk-gf-section">
+                <div className="bk-section-header" style={{ color: '#fbbf24' }}>Grand Final</div>
+                <div className="bk-bracket-row" style={{ justifyContent: 'center' }}>
+                  {gf1 && (
+                    <div className="bk-round">
+                      <div className="bk-round-header bk-final-header">GF1</div>
+                      <div className="bk-round-matches">{renderMatch(gf1, true)}</div>
+                    </div>
+                  )}
+                  {gf2 && gf2.status !== 'cancelled' && (
+                    <div className="bk-round">
+                      <div className="bk-round-header bk-final-header">
+                        GF2 <span className="bk-reset-label">(Reset)</span>
+                      </div>
+                      <div className="bk-round-matches">{renderMatch(gf2, true)}</div>
+                    </div>
+                  )}
+                </div>
+                {champion && (
+                  <div className="bk-champion">
+                    <div className="bk-champion-label">CHAMPION</div>
+                    <div className="bk-champion-name">{champion}</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Losers Bracket */}
+              <div className="bk-section">
+                <div className="bk-section-header bk-lb-header">Losers Bracket</div>
+                <div className="bk-bracket-row">
+                  {lbRoundNums.map(r => (
+                    <div key={`lb-${r}`} className="bk-round" data-round={r}>
+                      <div className="bk-round-header">{getLBRoundName(r, totalLBRounds)}</div>
+                      <div className="bk-round-matches" style={{ gap: `${Math.pow(2, Math.floor((r - 1) / 2)) * 4}px` }}>
+                        {(lbRounds.get(r) || []).map(m => renderMatch(m))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {tournament.status === 'in_progress' && (
+          <div className="fixed bottom-2 right-4 flex items-center gap-2 text-xs text-gray-500">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            Live
+          </div>
+        )}
+      </main>
+    )
+  }
+
+  // ===== Single Elimination Rendering (unchanged) =====
+  if (!bracketData) {
+    return (
+      <main className="min-h-screen p-8">
+        <p className="text-xl">No bracket data available</p>
+        <Link href="/" className="text-blue-400 hover:underline mt-4 block">Back to tournaments</Link>
       </main>
     )
   }

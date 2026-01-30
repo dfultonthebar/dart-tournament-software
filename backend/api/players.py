@@ -53,6 +53,7 @@ async def self_register(
 
     db.add(new_player)
     await db.flush()
+    await db.commit()
     await db.refresh(new_player)
 
     return new_player

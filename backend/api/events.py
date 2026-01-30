@@ -41,6 +41,7 @@ async def create_event(
     )
     db.add(event)
     await db.flush()
+    await db.commit()
     await db.refresh(event)
 
     return event

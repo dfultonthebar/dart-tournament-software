@@ -73,6 +73,7 @@ async def create_tournament(
     )
     db.add(tournament)
     await db.flush()
+    await db.commit()
     await db.refresh(tournament)
 
     return tournament
@@ -137,6 +138,7 @@ async def update_tournament(
         setattr(tournament, field, value)
 
     await db.flush()
+    await db.commit()
     await db.refresh(tournament)
 
     return tournament
@@ -295,6 +297,7 @@ async def add_player_to_tournament(
     )
     db.add(entry)
     await db.flush()
+    await db.commit()
     await db.refresh(entry)
 
     return entry
@@ -361,6 +364,7 @@ async def update_tournament_entry(
         setattr(entry, field, value)
 
     await db.flush()
+    await db.commit()
     await db.refresh(entry)
 
     return entry
@@ -438,6 +442,7 @@ async def check_in_entry(
     entry.checked_in = datetime.utcnow()
 
     await db.flush()
+    await db.commit()
     await db.refresh(entry)
 
     return entry
@@ -514,6 +519,7 @@ async def generate_bracket(
     tournament.start_time = datetime.utcnow()
 
     await db.flush()
+    await db.commit()
     await db.refresh(tournament)
 
     return tournament
@@ -618,15 +624,188 @@ async def _generate_single_elimination_bracket(
             await db.flush()
 
 
+def _get_seed_positions(bracket_size: int) -> List[int]:
+    """Return seeding order for a power-of-2 bracket so top seeds are maximally separated.
+
+    For bracket_size=8: [1,8,5,4,3,6,7,2] — seed 1 vs 8, 5 vs 4, 3 vs 6, 7 vs 2.
+    This ensures top seeds don't meet until late rounds.
+    """
+    if bracket_size == 1:
+        return [0]
+    if bracket_size == 2:
+        return [0, 1]
+
+    # Build recursively: for each layer, interleave the mirror
+    positions = [0, 1]
+    while len(positions) < bracket_size:
+        next_layer = []
+        size = len(positions)
+        for p in positions:
+            next_layer.append(p)
+            next_layer.append(2 * size - 1 - p)
+        positions = next_layer
+    return positions
+
+
 async def _generate_double_elimination_bracket(
     tournament: Tournament,
     entries: List[TournamentEntry],
     db: AsyncSession
 ):
-    """Generate double elimination bracket matches."""
-    # For now, generate as single elimination
-    # Full implementation would include winners and losers brackets
-    await _generate_single_elimination_bracket(tournament, entries, db)
+    """Generate a full double elimination bracket.
+
+    Structure:
+    - Winners Bracket (WB): WR1..WRn  (standard single-elim)
+    - Losers Bracket (LB): LR1..LR(2*(n-1))
+      - Odd LB rounds receive drop-downs from WB and reduce count
+      - Even LB rounds combine LB survivors
+    - Grand Final: GF1, GF2 (reset if LB champion wins GF1)
+
+    Round number encoding:
+      WB: round_number = 1..n
+      LB: round_number = 101, 102, ...
+      GF1: round_number = 200, GF2: 201
+
+    Bracket position format:
+      WB: WR{round}M{index}
+      LB: LR{round}M{index}
+      GF: GF1, GF2
+    """
+    num_entries = len(entries)
+
+    # Calculate bracket size (next power of 2)
+    bracket_size = 1
+    while bracket_size < num_entries:
+        bracket_size *= 2
+
+    num_wb_rounds = int(math.log2(bracket_size))
+    num_lb_rounds = 2 * (num_wb_rounds - 1)  # e.g. 3 WB rounds -> 4 LB rounds
+
+    match_number = 1  # Global sequential counter
+    all_matches: dict[str, Match] = {}  # bracket_position -> Match
+
+    # ---- Create Winners Bracket matches ----
+    for r in range(1, num_wb_rounds + 1):
+        matches_in_round = bracket_size // (2 ** r)
+        for i in range(1, matches_in_round + 1):
+            bp = f"WR{r}M{i}"
+            m = Match(
+                tournament_id=tournament.id,
+                round_number=r,
+                match_number=match_number,
+                bracket_position=bp,
+                status=MatchStatus.PENDING,
+            )
+            db.add(m)
+            all_matches[bp] = m
+            match_number += 1
+
+    # ---- Create Losers Bracket matches ----
+    # LB structure for bracket_size=8 (num_wb_rounds=3, num_lb_rounds=4):
+    #   LR1: 2 matches (receives WR1 losers, paired)
+    #   LR2: 2 matches (receives WR2 losers into pos 2, LR1 winners into pos 1)
+    #   LR3: 1 match  (LR2 winners pair up)
+    #   LR4: 1 match  (receives WR3/WBF loser into pos 2, LR3 winner into pos 1) = LBF
+    for lr in range(1, num_lb_rounds + 1):
+        if lr == 1:
+            # LR1: receives pairs of WR1 losers
+            # WR1 has bracket_size/2 matches; pairs -> bracket_size/4 LR1 matches
+            lr_count = bracket_size // 4
+        elif lr % 2 == 0:
+            # Even LR round: same count as previous odd round (drop-downs join)
+            lr_count = lb_prev_count  # noqa: F821 — set in previous iteration
+        else:
+            # Odd LR round (>=3): halve the previous count (pair up survivors)
+            lr_count = lb_prev_count // 2  # noqa: F821
+
+        lb_prev_count = lr_count  # noqa: F841
+
+        for i in range(1, lr_count + 1):
+            bp = f"LR{lr}M{i}"
+            m = Match(
+                tournament_id=tournament.id,
+                round_number=100 + lr,
+                match_number=match_number,
+                bracket_position=bp,
+                status=MatchStatus.PENDING,
+            )
+            db.add(m)
+            all_matches[bp] = m
+            match_number += 1
+
+    # ---- Create Grand Final matches ----
+    gf1 = Match(
+        tournament_id=tournament.id,
+        round_number=200,
+        match_number=match_number,
+        bracket_position="GF1",
+        status=MatchStatus.PENDING,
+    )
+    db.add(gf1)
+    all_matches["GF1"] = gf1
+    match_number += 1
+
+    gf2 = Match(
+        tournament_id=tournament.id,
+        round_number=201,
+        match_number=match_number,
+        bracket_position="GF2",
+        status=MatchStatus.PENDING,
+    )
+    db.add(gf2)
+    all_matches["GF2"] = gf2
+
+    await db.flush()
+
+    # ---- Seed WR1 using proper seeding order ----
+    seed_order = _get_seed_positions(bracket_size)
+    # seed_order maps slot index -> which seed rank goes there
+    # We need: for slot i, which entry index to place there
+    # seed_order[i] gives the seed rank (0-based) for slot i
+    # entries are already sorted by seed, so entry[seed_order[i]] if it exists
+
+    wr1_matches = bracket_size // 2
+    for slot in range(bracket_size):
+        entry_index = seed_order[slot]
+        if entry_index >= num_entries:
+            continue  # bye slot (no player)
+
+        match_index = slot // 2  # which WR1 match (0-based)
+        position = (slot % 2) + 1  # 1 or 2
+
+        bp = f"WR1M{match_index + 1}"
+        target_match = all_matches[bp]
+
+        mp = MatchPlayer(
+            match_id=target_match.id,
+            player_id=entries[entry_index].player_id,
+            position=position,
+            sets_won=0,
+            legs_won=0,
+        )
+        db.add(mp)
+
+    await db.flush()
+
+    # ---- Auto-complete WR1 byes and cascade ----
+    from backend.api.matches import _advance_double_elim_winner
+
+    for i in range(1, wr1_matches + 1):
+        bp = f"WR1M{i}"
+        m = all_matches[bp]
+        await db.refresh(m, attribute_names=["match_players"])
+        player_count = len(m.match_players)
+        if player_count == 1:
+            m.status = MatchStatus.COMPLETED
+            m.completed_at = datetime.utcnow()
+            m.winner_id = m.match_players[0].player_id
+            await db.flush()
+            await db.refresh(m)
+            await _advance_double_elim_winner(m, db)
+        elif player_count == 0:
+            m.status = MatchStatus.COMPLETED
+            m.completed_at = datetime.utcnow()
+            await db.flush()
 
 
 async def _generate_round_robin_bracket(
