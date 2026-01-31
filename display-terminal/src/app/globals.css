@@ -28,7 +28,7 @@ body {
   min-height: 100dvh;
 }
 
-/* ===== LEFT/RIGHT BRACKET DISPLAY ===== */
+/* ===== LEFT/RIGHT BRACKET DISPLAY (NCAA-style) ===== */
 
 .bracket-page {
   width: 100vw;
@@ -60,30 +60,28 @@ body {
 .bk-bracket {
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
+  align-items: center;
   gap: 0;
-  transition: transform 0.3s ease;
 }
 
 /* Left and right bracket halves */
 .bk-half {
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 .bk-right {
   flex-direction: row-reverse;
 }
 
-/* Center finals area */
+/* Center finals area - vertically centered between the two halves */
 .bk-center {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 0 12px;
-  min-height: 200px;
+  padding: 0 32px;
   align-self: center;
 }
 
@@ -92,23 +90,23 @@ body {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  min-width: 170px;
-  padding: 0 6px;
+  min-width: 300px;
+  padding: 0 20px;
 }
 
 .bk-round-header {
   text-align: center;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #6b7280;
-  margin-bottom: 6px;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #94a3b8;
+  margin-bottom: 14px;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
 }
 
 .bk-final-header {
   color: #fbbf24;
-  font-size: 0.9rem;
+  font-size: 1.5rem;
 }
 
 .bk-round-matches {
@@ -116,17 +114,18 @@ body {
   flex-direction: column;
   justify-content: space-around;
   flex: 1;
-  gap: 4px;
+  gap: 8px;
 }
 
-/* Match card */
+/* Match card - large flat cards for distance reading */
 .bk-match {
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-  border: 1.5px solid #334155;
-  border-radius: 6px;
+  background: #0f172a;
+  border: 2px solid #334155;
+  border-radius: 4px;
   position: relative;
-  overflow: hidden;
-  min-width: 155px;
+  overflow: visible;
+  min-width: 280px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 .bk-match:hover {
@@ -135,19 +134,13 @@ body {
 
 /* Status styles */
 .bk-match.pending {
-  opacity: 0.6;
+  opacity: 0.5;
   border-color: #374151;
 }
 
 .bk-match.in_progress {
   border-color: #f59e0b;
-  box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
-  animation: match-glow 2s ease-in-out infinite;
-}
-
-@keyframes match-glow {
-  0%, 100% { box-shadow: 0 0 10px rgba(245, 158, 11, 0.3); }
-  50% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.5); }
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
 }
 
 .bk-match.completed {
@@ -155,58 +148,61 @@ body {
 }
 
 .bk-match.bye {
-  opacity: 0.35;
+  opacity: 0.3;
   border-color: #374151;
 }
 
 .bk-match.finals {
-  border: 2px solid #fbbf24;
-  background: linear-gradient(135deg, #1e293b 0%, #1a1a2e 100%);
-  min-width: 180px;
+  border: 3px solid #fbbf24;
+  background: #0f172a;
+  min-width: 320px;
+  box-shadow: 0 0 28px rgba(251, 191, 36, 0.2);
 }
 
-/* Player row */
+/* Player row - large for distance readability */
 .bk-player {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 10px;
+  padding: 14px 18px;
 }
 
 .bk-divider {
-  height: 1px;
+  height: 2px;
   background: #1e293b;
 }
 
 .bk-name {
-  font-size: 0.8rem;
+  font-size: 1.35rem;
   color: #e2e8f0;
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 120px;
+  max-width: 220px;
+  font-weight: 500;
 }
 
 .bk-score {
-  font-size: 0.85rem;
+  font-size: 1.4rem;
   font-weight: bold;
   color: #94a3b8;
-  min-width: 20px;
+  min-width: 36px;
   text-align: center;
   background: #1e293b;
-  padding: 1px 6px;
-  border-radius: 3px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  margin-left: 10px;
 }
 
 /* Winner/loser */
 .bk-player.winner {
-  background: linear-gradient(90deg, rgba(16, 185, 129, 0.15) 0%, transparent 100%);
+  background: rgba(16, 185, 129, 0.12);
 }
 
 .bk-player.winner .bk-name {
-  color: #10b981;
-  font-weight: 600;
+  color: #34d399;
+  font-weight: 700;
 }
 
 .bk-player.winner .bk-score {
@@ -219,78 +215,110 @@ body {
   text-decoration: line-through;
 }
 
+.bk-player.loser .bk-score {
+  color: #4b5563;
+}
+
 .bk-player.tbd .bk-name {
   color: #4b5563;
   font-style: italic;
+  font-weight: 400;
+}
+
+/* Connector lines - left half (extend right toward center) */
+.bk-left .bk-match::after {
+  content: '';
+  position: absolute;
+  right: -21px;
+  top: 50%;
+  width: 21px;
+  height: 2px;
+  background: #475569;
+}
+
+/* Connector lines - right half (extend left toward center) */
+.bk-right .bk-match::after {
+  content: '';
+  position: absolute;
+  left: -21px;
+  top: 50%;
+  width: 21px;
+  height: 2px;
+  background: #475569;
+}
+
+/* No connectors on finals match */
+.bk-match.finals::after {
+  display: none;
 }
 
 /* Badges */
 .bk-badge-left {
   position: absolute;
-  top: 1px;
-  left: 1px;
+  top: 3px;
+  left: 3px;
   z-index: 2;
 }
 
 .bk-badge-right {
   position: absolute;
-  top: 1px;
-  right: 1px;
+  top: 3px;
+  right: 3px;
   z-index: 2;
 }
 
 /* Bye label */
 .bk-bye-label {
   color: #4b5563;
-  font-size: 0.7rem;
+  font-size: 1.1rem;
   text-align: center;
-  padding: 6px;
+  padding: 14px;
   font-style: italic;
 }
 
 /* Champion */
 .bk-champion {
   text-align: center;
-  margin-top: 12px;
-  padding: 8px 16px;
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(245, 158, 11, 0.1));
-  border: 1px solid #fbbf24;
-  border-radius: 8px;
+  margin-top: 20px;
+  padding: 16px 28px;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.12), rgba(245, 158, 11, 0.08));
+  border: 2px solid #fbbf24;
+  border-radius: 6px;
 }
 
 .bk-champion-label {
-  font-size: 0.7rem;
+  font-size: 1rem;
   color: #fbbf24;
   text-transform: uppercase;
-  letter-spacing: 0.15em;
-  font-weight: 700;
+  letter-spacing: 0.25em;
+  font-weight: 800;
 }
 
 .bk-champion-name {
-  font-size: 1.1rem;
+  font-size: 1.8rem;
   color: #fbbf24;
   font-weight: bold;
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 /* Badges (shared) */
 .live-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   background: #dc2626;
   color: white;
-  padding: 2px 6px;
+  padding: 3px 8px;
   border-radius: 3px;
-  font-size: 0.6rem;
+  font-size: 0.75rem;
   font-weight: bold;
   text-transform: uppercase;
 }
 
 .live-badge::before {
   content: '';
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   background: white;
   border-radius: 50%;
   animation: pulse-dot 1.5s infinite;
@@ -301,11 +329,11 @@ body {
   align-items: center;
   background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
   color: white;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 0.6rem;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 1.1rem;
   font-weight: bold;
-  box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
 }
 
 @keyframes pulse-dot {
@@ -375,7 +403,7 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 2rem;
+  padding: 0.5rem;
   overflow: hidden;
   flex: 1;
 }
@@ -494,12 +522,6 @@ body {
 .bracket-match.in_progress {
   border-color: #f59e0b;
   box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
-  animation: glow 2s ease-in-out infinite;
-}
-
-@keyframes glow {
-  0%, 100% { box-shadow: 0 0 15px rgba(245, 158, 11, 0.3); }
-  50% { box-shadow: 0 0 25px rgba(245, 158, 11, 0.5); }
 }
 
 .bracket-match.completed {

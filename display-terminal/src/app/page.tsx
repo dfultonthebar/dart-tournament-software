@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import Link from 'next/link'
 import RegistrationQRCode from '@/components/RegistrationQRCode'
 import { getApiUrl } from '@shared/lib/api-url'
 
@@ -40,6 +39,7 @@ interface Match {
   tournament_id: string
   round_number: number
   match_number: number
+  bracket_position: string | null
   status: string
   winner_id: string | null
   winner_team_id: string | null
@@ -66,15 +66,15 @@ export default function Home() {
   const [teamMap, setTeamMap] = useState<Record<string, Team>>({})
   const [loading, setLoading] = useState(true)
   const [slideshowInterval, setSlideshowInterval] = useState(20) // seconds
-  const [isPaused, setIsPaused] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
   const [showQRCode, setShowQRCode] = useState(false) // Track if QR code slide is active
   const [enableQRSlide, setEnableQRSlide] = useState(false) // QR disabled by default, admin controls it
   const [scale, setScale] = useState(1)
   const containerRef = useRef<HTMLDivElement>(null)
   const bracketRef = useRef<HTMLDivElement>(null)
+  const lockedScaleRef = useRef<number | null>(null)
 
-  // Auto-scale bracket to fit viewport
+  // Auto-scale bracket to fit viewport.
+  // Scale only decreases (zooms out) for the same tournament — never zooms in.
   const updateScale = useCallback(() => {
     if (!containerRef.current || !bracketRef.current) return
     const container = containerRef.current.getBoundingClientRect()
@@ -82,22 +82,44 @@ export default function Home() {
     // Reset scale to measure natural size
     bracket.style.transform = 'scale(1)'
     const natural = bracket.getBoundingClientRect()
-    const scaleX = (container.width - 32) / natural.width
-    const scaleY = (container.height - 32) / natural.height
-    const newScale = Math.min(scaleX, scaleY, 1)
-    setScale(Math.max(newScale, 0.2))
+    if (natural.width === 0 || natural.height === 0) return
+    const scaleX = container.width / natural.width
+    const scaleY = container.height / natural.height
+    let newScale = Math.min(scaleX, scaleY, 1)
+    newScale = Math.max(newScale, 0.1)
+
+    // Lock: only allow scale to decrease for the same tournament
+    if (lockedScaleRef.current !== null) {
+      newScale = Math.min(newScale, lockedScaleRef.current)
+    }
+    lockedScaleRef.current = newScale
+    setScale(newScale)
   }, [])
 
-  // Re-scale on window resize and when matches change
+  // Reset locked scale when tournament changes
   useEffect(() => {
-    updateScale()
+    lockedScaleRef.current = null
+  }, [currentIndex])
+
+  // Re-scale on window resize
+  useEffect(() => {
     window.addEventListener('resize', updateScale)
     return () => window.removeEventListener('resize', updateScale)
-  }, [updateScale, matches])
+  }, [updateScale])
+
+  // Re-measure after matches load — wait for DOM to render first
+  useEffect(() => {
+    // Reset lock when match data changes (bracket may have grown)
+    lockedScaleRef.current = null
+    // Wait for React to render the new bracket DOM before measuring
+    const timer = setTimeout(updateScale, 150)
+    return () => clearTimeout(timer)
+  }, [matches, updateScale])
 
   // Re-scale when slideshow advances to a different tournament
   useEffect(() => {
-    const timer = setTimeout(updateScale, 100)
+    lockedScaleRef.current = null
+    const timer = setTimeout(updateScale, 150)
     return () => clearTimeout(timer)
   }, [currentIndex, updateScale])
 
@@ -135,8 +157,8 @@ export default function Home() {
     // Calculate total slides: tournaments + QR code (if enabled)
     const totalSlides = enableQRSlide ? tournaments.length + 1 : tournaments.length
 
-    // Don't auto-advance if only one slide or paused
-    if (totalSlides <= 1 || isPaused) return
+    // Don't auto-advance if only one slide
+    if (totalSlides <= 1) return
 
     const timer = setInterval(() => {
       if (enableQRSlide) {
@@ -158,7 +180,7 @@ export default function Home() {
     }, slideshowInterval * 1000)
 
     return () => clearInterval(timer)
-  }, [tournaments.length, slideshowInterval, isPaused, enableQRSlide, showQRCode, currentIndex])
+  }, [tournaments.length, slideshowInterval, enableQRSlide, showQRCode, currentIndex])
 
   // Load matches when tournament changes
   useEffect(() => {
@@ -226,30 +248,154 @@ export default function Home() {
     return players[playerId]?.name || 'TBD'
   }
 
-  const getMatchesByRound = useMemo((): Map<number, Match[]> => {
-    const rounds = new Map<number, Match[]>()
-    matches.forEach(match => {
-      const roundMatches = rounds.get(match.round_number) || []
-      roundMatches.push(match)
-      rounds.set(match.round_number, roundMatches)
-    })
+  // Parse bracket_position "R1M3" -> { round: 1, matchInRound: 3 }
+  function parseBracketPosition(bp: string | null, fallbackRound: number, fallbackMatch: number) {
+    if (!bp) return { round: fallbackRound, matchInRound: fallbackMatch }
+    const m = bp.match(/R(\d+)M(\d+)/)
+    if (!m) return { round: fallbackRound, matchInRound: fallbackMatch }
+    return { round: parseInt(m[1]), matchInRound: parseInt(m[2]) }
+  }
+
+  const bracketData = useMemo(() => {
+    if (matches.length === 0) return null
+
+    const totalRounds = Math.max(...matches.map(m => m.round_number))
+
+    // Group by round and sort by within-round index
+    const rounds: Map<number, Match[]> = new Map()
+    for (const match of matches) {
+      const list = rounds.get(match.round_number) || []
+      list.push(match)
+      rounds.set(match.round_number, list)
+    }
+    // Sort each round by bracket position
     rounds.forEach((roundMatches, round) => {
-      rounds.set(round, roundMatches.sort((a, b) => a.match_number - b.match_number))
+      rounds.set(round, roundMatches.sort((a, b) => {
+        const aPos = parseBracketPosition(a.bracket_position, a.round_number, a.match_number)
+        const bPos = parseBracketPosition(b.bracket_position, b.round_number, b.match_number)
+        return aPos.matchInRound - bPos.matchInRound
+      }))
     })
-    return rounds
+
+    // Split each round in half for left/right bracket sides
+    const leftRounds: Map<number, Match[]> = new Map()
+    const rightRounds: Map<number, Match[]> = new Map()
+
+    for (let r = 1; r <= totalRounds; r++) {
+      const roundMatches = rounds.get(r) || []
+      if (r === totalRounds) {
+        // Finals - center, don't split
+        continue
+      }
+      const half = Math.ceil(roundMatches.length / 2)
+      leftRounds.set(r, roundMatches.slice(0, half))
+      rightRounds.set(r, roundMatches.slice(half))
+    }
+
+    const finals = rounds.get(totalRounds)?.[0] || null
+
+    return { totalRounds, leftRounds, rightRounds, finals, rounds }
   }, [matches])
 
   function getRoundName(round: number, totalRounds: number): string {
     const remaining = totalRounds - round + 1
     if (remaining === 1) return 'Final'
-    if (remaining === 2) return 'Semi-Finals'
-    if (remaining === 3) return 'Quarter-Finals'
-    return `Round ${round}`
+    if (remaining === 2) return 'Semis'
+    if (remaining === 3) return 'Quarters'
+    return `R${round}`
   }
 
-  function saveInterval(seconds: number) {
-    setSlideshowInterval(seconds)
-    localStorage.setItem('slideshow_interval', seconds.toString())
+  // Determine if a match is a bye (completed with 0 or 1 players)
+  function isBye(match: Match): boolean {
+    return match.status === 'completed' && match.players.length <= 1
+  }
+
+  function renderMatch(match: Match, isFinal: boolean = false) {
+    const dartboard = match.dartboard_id ? dartboards[match.dartboard_id] : null
+    const bye = isBye(match)
+    const isDoubles = match.players.some(mp => mp.team_id)
+
+    return (
+      <div
+        key={match.id}
+        className={`bk-match ${match.status} ${isFinal ? 'finals' : ''} ${bye ? 'bye' : ''}`}
+      >
+        {match.status === 'in_progress' && (
+          <div className="bk-badge-left">
+            <span className="live-badge">LIVE</span>
+          </div>
+        )}
+        {dartboard && (
+          <div className="bk-badge-right">
+            <span className="board-badge">B{dartboard.number}</span>
+          </div>
+        )}
+        {bye ? (
+          <div className="bk-bye-label">BYE</div>
+        ) : match.players.length === 0 ? (
+          <>
+            <div className="bk-player tbd"><span className="bk-name">TBD</span></div>
+            <div className="bk-divider" />
+            <div className="bk-player tbd"><span className="bk-name">TBD</span></div>
+          </>
+        ) : isDoubles ? (
+          // Team-based rendering: group by team_id
+          (() => {
+            const teamGroups: Record<string, MatchPlayer[]> = {}
+            match.players.forEach(mp => {
+              const key = mp.team_id || mp.player_id
+              if (!teamGroups[key]) teamGroups[key] = []
+              teamGroups[key].push(mp)
+            })
+            const teams = Object.entries(teamGroups).sort(
+              (a, b) => (a[1][0]?.position ?? 0) - (b[1][0]?.position ?? 0)
+            )
+            return teams.map(([tid, members], i) => (
+              <div key={tid}>
+                {i > 0 && <div className="bk-divider" />}
+                <div
+                  className={`bk-player ${
+                    match.winner_team_id === tid ? 'winner' :
+                    match.winner_team_id && match.winner_team_id !== tid ? 'loser' : ''
+                  }`}
+                >
+                  <span className="bk-name">{teamMap[tid]?.name || members.map(m => getPlayerName(m.player_id)).join(' & ')}</span>
+                  <span className="bk-score">{members[0]?.legs_won ?? 0}</span>
+                </div>
+              </div>
+            ))
+          })()
+        ) : (
+          match.players
+            .sort((a, b) => a.position - b.position)
+            .map((mp, i) => (
+              <div key={mp.player_id}>
+                {i > 0 && <div className="bk-divider" />}
+                <div
+                  className={`bk-player ${
+                    match.winner_id === mp.player_id ? 'winner' :
+                    match.winner_id && match.winner_id !== mp.player_id ? 'loser' : ''
+                  }`}
+                >
+                  <span className="bk-name">{getPlayerName(mp.player_id)}</span>
+                  <span className="bk-score">{mp.legs_won}</span>
+                </div>
+              </div>
+            ))
+        )}
+      </div>
+    )
+  }
+
+  function renderRoundColumn(roundNum: number, roundMatches: Match[], totalRounds: number, side: 'left' | 'right') {
+    return (
+      <div key={`${side}-${roundNum}`} className="bk-round" data-round={roundNum}>
+        <div className="bk-round-header">{getRoundName(roundNum, totalRounds)}</div>
+        <div className="bk-round-matches" style={{ gap: `${Math.pow(2, roundNum - 1) * 12}px` }}>
+          {roundMatches.map(m => renderMatch(m))}
+        </div>
+      </div>
+    )
   }
 
   // When admin disables QR and it's currently showing, switch back to tournaments
@@ -259,41 +405,6 @@ export default function Home() {
       setCurrentIndex(0)
     }
   }, [enableQRSlide])
-
-  // Navigation handlers for slideshow controls
-  function goToPrevSlide() {
-    if (enableQRSlide) {
-      if (showQRCode) {
-        // From QR, go to last tournament
-        setShowQRCode(false)
-        setCurrentIndex(tournaments.length - 1)
-      } else if (currentIndex === 0) {
-        // From first tournament, go to QR
-        setShowQRCode(true)
-      } else {
-        setCurrentIndex(prev => prev - 1)
-      }
-    } else {
-      setCurrentIndex(prev => prev === 0 ? tournaments.length - 1 : prev - 1)
-    }
-  }
-
-  function goToNextSlide() {
-    if (enableQRSlide) {
-      if (showQRCode) {
-        // From QR, go to first tournament
-        setShowQRCode(false)
-        setCurrentIndex(0)
-      } else if (currentIndex >= tournaments.length - 1) {
-        // From last tournament, go to QR
-        setShowQRCode(true)
-      } else {
-        setCurrentIndex(prev => prev + 1)
-      }
-    } else {
-      setCurrentIndex(prev => (prev + 1) % tournaments.length)
-    }
-  }
 
   // Calculate total slides for indicator
   const totalSlides = enableQRSlide ? tournaments.length + 1 : tournaments.length
@@ -318,116 +429,29 @@ export default function Home() {
   }
 
   const currentTournament = tournaments[currentIndex]
-  const roundsMap = getMatchesByRound
-  const rounds = Array.from(roundsMap.keys()).sort((a, b) => a - b)
-
-  // Calculate total rounds based on number of first-round matches
-  // For single elimination: 2 matches in R1 = 2 rounds total, 4 matches = 3 rounds, etc.
-  const firstRoundMatches = roundsMap.get(1)?.length || 1
-  const calculatedTotalRounds = Math.ceil(Math.log2(firstRoundMatches * 2))
-  const totalRounds = Math.max(calculatedTotalRounds, ...rounds, 1)
 
   return (
-    <main className="h-screen p-4 relative flex flex-col overflow-hidden">
-      {/* Settings Modal */}
-      {showSettings && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <h2 className="text-2xl font-bold mb-4">Display Settings</h2>
-
-            <div className="mb-4">
-              <label className="block text-sm text-gray-400 mb-2">
-                Slideshow Interval (seconds)
-              </label>
-              <input
-                type="number"
-                min="5"
-                max="120"
-                value={slideshowInterval}
-                onChange={(e) => saveInterval(parseInt(e.target.value) || 20)}
-                className="w-full p-3 bg-gray-700 rounded-lg border border-gray-600"
-              />
-            </div>
-
-            <div className="mb-4">
-              <div className="flex items-center gap-3">
-                <span className={`w-3 h-3 rounded-full ${enableQRSlide ? 'bg-green-500' : 'bg-gray-600'}`} />
-                <span className="text-gray-300">
-                  QR Registration: {enableQRSlide ? 'Enabled' : 'Disabled'}
-                </span>
-              </div>
-              <p className="text-sm text-gray-500 mt-1 ml-6">
-                Controlled from the admin dashboard
-              </p>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowSettings(false)}
-                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-bold"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+    <main className="h-screen p-2 relative flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-4">
-          {totalSlides > 1 && (
-            <>
-              <button
-                onClick={goToPrevSlide}
-                className="px-4 py-3 min-h-[44px] min-w-[44px] bg-gray-700 rounded-lg hover:bg-gray-600"
-              >
-                &larr;
-              </button>
-              <button
-                onClick={() => setIsPaused(!isPaused)}
-                className={`px-4 py-3 min-h-[44px] min-w-[44px] rounded-lg ${isPaused ? 'bg-green-600' : 'bg-yellow-600'}`}
-              >
-                {isPaused ? 'Play' : 'Pause'}
-              </button>
-              <button
-                onClick={goToNextSlide}
-                className="px-4 py-3 min-h-[44px] min-w-[44px] bg-gray-700 rounded-lg hover:bg-gray-600"
-              >
-                &rarr;
-              </button>
-            </>
-          )}
-        </div>
-
-        <div className="text-center flex-1">
-          {showQRCode ? (
-            <>
-              <h1 className="text-3xl font-bold">Player Registration</h1>
-              <div className="text-gray-400">
-                Scan to join tournaments
-              </div>
-            </>
-          ) : (
-            <>
-              <h1 className="text-3xl font-bold">{currentTournament.name}</h1>
-              <div className="text-gray-400">
-                {currentTournament.game_type.toUpperCase()} • {currentTournament.format.replace(/_/g, ' ')}
-                {currentTournament.status === 'in_progress' && (
-                  <span className="ml-2 px-2 py-1 bg-green-600 rounded text-xs">LIVE</span>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-
-        <button
-          onClick={() => setShowSettings(true)}
-          className="px-4 py-3 min-h-[44px] min-w-[44px] bg-gray-700 rounded-lg hover:bg-gray-600"
-          title="Settings"
-        >
-          ⚙
-        </button>
+      <div className="text-center mb-2">
+        {showQRCode ? (
+          <>
+            <h1 className="text-3xl font-bold">Player Registration</h1>
+            <div className="text-gray-400">
+              Scan to join tournaments
+            </div>
+          </>
+        ) : (
+          <>
+            <h1 className="text-3xl font-bold">{currentTournament.name}</h1>
+            <div className="text-gray-400">
+              {currentTournament.game_type.toUpperCase()} • {currentTournament.format.replace(/_/g, ' ')}
+              {currentTournament.status === 'in_progress' && (
+                <span className="ml-2 px-2 py-1 bg-green-600 rounded text-xs">LIVE</span>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Slideshow indicator */}
@@ -460,80 +484,51 @@ export default function Home() {
         </div>
       ) : (
         <div className="bracket-container" ref={containerRef}>
-          <div className="bracket-wrapper" ref={bracketRef} style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}>
-            {rounds.map(round => (
-              <div key={round} className="bracket-round">
-                <div className="round-header">
-                  {getRoundName(round, totalRounds)}
+          {bracketData && (() => {
+            const { totalRounds, leftRounds, rightRounds, finals } = bracketData
+            const leftRoundNums = Array.from(leftRounds.keys()).sort((a, b) => a - b)
+            const rightRoundNums = Array.from(rightRounds.keys()).sort((a, b) => a - b)
+
+            return (
+              <div ref={bracketRef} className="bk-bracket" style={{ transform: `scale(${scale})`, transformOrigin: 'center center' }}>
+                {/* Left half */}
+                <div className="bk-half bk-left">
+                  {leftRoundNums.map(r =>
+                    renderRoundColumn(r, leftRounds.get(r) || [], totalRounds, 'left')
+                  )}
                 </div>
-                {roundsMap.get(round)?.map(match => {
-                  const dartboard = match.dartboard_id ? dartboards[match.dartboard_id] : null
-                  return (
-                  <div
-                    key={match.id}
-                    className={`bracket-match ${match.status} ${round === totalRounds ? 'finals' : ''}`}
-                  >
-                    <div className="match-number">M{match.match_number}</div>
-                    {match.status === 'in_progress' && (
-                      <div className="absolute top-2 left-2">
-                        <span className="live-badge">LIVE</span>
+
+                {/* Finals center */}
+                {finals && (
+                  <div className="bk-center">
+                    <div className="bk-round">
+                      <div className="bk-round-header bk-final-header">FINAL</div>
+                      <div className="bk-round-matches">
+                        {renderMatch(finals, true)}
                       </div>
-                    )}
-                    {dartboard && (
-                      <div className="absolute top-2 right-2">
-                        <span className="board-badge" title={dartboard.name || undefined}>
-                          Board {dartboard.number}
-                        </span>
-                      </div>
-                    )}
-                    {match.players.length === 0 ? (
-                      <div className="awaiting-players">Awaiting players</div>
-                    ) : match.players.some(mp => mp.team_id) ? (
-                      // Team-based rendering
-                      (() => {
-                        const teamGroups: Record<string, MatchPlayer[]> = {}
-                        match.players.forEach(mp => {
-                          const key = mp.team_id || mp.player_id
-                          if (!teamGroups[key]) teamGroups[key] = []
-                          teamGroups[key].push(mp)
-                        })
-                        return Object.entries(teamGroups)
-                          .sort((a, b) => (a[1][0]?.position ?? 0) - (b[1][0]?.position ?? 0))
-                          .map(([tid, members]) => (
-                            <div
-                              key={tid}
-                              className={`bracket-player ${
-                                match.winner_team_id === tid ? 'winner' :
-                                match.winner_team_id && match.winner_team_id !== tid ? 'loser' : ''
-                              }`}
-                            >
-                              <span className="player-name">{teamMap[tid]?.name || members.map(m => getPlayerName(m.player_id)).join(' & ')}</span>
-                              <span className="player-score">{members[0]?.legs_won ?? 0}</span>
-                            </div>
-                          ))
-                      })()
-                    ) : (
-                      match.players
-                        .sort((a, b) => a.position - b.position)
-                        .map(mp => (
-                          <div
-                            key={mp.player_id}
-                            className={`bracket-player ${
-                              match.winner_id === mp.player_id ? 'winner' :
-                              match.winner_id && match.winner_id !== mp.player_id ? 'loser' : ''
-                            } ${getPlayerName(mp.player_id) === 'TBD' ? 'tbd' : ''}`}
-                          >
-                            <span className="player-name">{getPlayerName(mp.player_id)}</span>
-                            <span className="player-score">{mp.legs_won}</span>
+                      {(finals.winner_id || finals.winner_team_id) && (
+                        <div className="bk-champion">
+                          <div className="bk-champion-label">CHAMPION</div>
+                          <div className="bk-champion-name">
+                            {finals.winner_team_id
+                              ? (teamMap[finals.winner_team_id]?.name || 'Team')
+                              : getPlayerName(finals.winner_id!)}
                           </div>
-                        ))
-                    )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  )
-                })}
+                )}
+
+                {/* Right half (mirrored) */}
+                <div className="bk-half bk-right">
+                  {rightRoundNums.map(r =>
+                    renderRoundColumn(r, rightRounds.get(r) || [], totalRounds, 'right')
+                  )}
+                </div>
               </div>
-            ))}
-          </div>
+            )
+          })()}
         </div>
       )}
 
@@ -549,7 +544,7 @@ export default function Home() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {!isPaused && totalSlides > 1 && (
+          {totalSlides > 1 && (
             <>
               <span>Next in {slideshowInterval}s</span>
               <span>•</span>

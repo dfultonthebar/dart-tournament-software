@@ -408,6 +408,7 @@ async def _auto_complete_tournament(tournament_id, db: AsyncSession):
     tournament = result.scalar_one_or_none()
     if tournament and tournament.status == TournamentStatus.IN_PROGRESS:
         tournament.status = TournamentStatus.COMPLETED
+        tournament.end_time = datetime.utcnow()
         await db.flush()
 
 
