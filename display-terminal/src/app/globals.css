@@ -588,6 +588,12 @@ body {
 .qr-subtitle {
   font-size: 1.25rem;
   color: #9ca3af;
+  margin-bottom: 0.75rem;
+}
+
+.qr-wifi-notice {
+  font-size: 1.1rem;
+  color: #fbbf24;
   margin-bottom: 2rem;
 }
 

@@ -30,8 +30,7 @@ export default function RegistrationQRCode({ size = 280 }: RegistrationQRCodePro
         // fall back to window hostname
       }
       setHostname(host)
-      const port = window.location.port || '3001'
-      setRegistrationUrl(`http://${host}:${port}/register`)
+      setRegistrationUrl(`http://${host}:3001/register`)
     }
     resolveHost()
   }, [])
@@ -49,6 +48,7 @@ export default function RegistrationQRCode({ size = 280 }: RegistrationQRCodePro
       <div className="qr-content">
         <h2 className="qr-title">Player Registration</h2>
         <p className="qr-subtitle">Scan to register for tournaments</p>
+        <p className="qr-wifi-notice">Connect to <strong>Customer WiFi</strong> first</p>
 
         <div className="qr-code-wrapper">
           <div className="qr-code-inner">
