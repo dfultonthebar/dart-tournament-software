@@ -11,7 +11,7 @@ from datetime import datetime
 
 from backend.core import get_db
 from backend.models import Match, MatchPlayer, Player, Game, Tournament, MatchStatus, GameStatus, Dartboard, Admin, Team, TournamentStatus
-from backend.websocket.handlers import notify_match_completed, notify_match_updated
+from backend.websocket.handlers import notify_match_completed, notify_match_updated, notify_board_assigned
 from backend.schemas import (
     MatchResponse,
     MatchWithPlayers,
@@ -250,6 +250,8 @@ async def update_match(
             else:
                 await _advance_winner_in_bracket(match, db)
 
+        await _auto_assign_boards(match.tournament_id, db)
+
     await db.commit()
     await db.refresh(match)
 
@@ -410,6 +412,92 @@ async def _auto_complete_tournament(tournament_id, db: AsyncSession):
         tournament.status = TournamentStatus.COMPLETED
         tournament.end_time = datetime.utcnow()
         await db.flush()
+
+
+async def _auto_assign_boards(tournament_id, db: AsyncSession):
+    """Auto-assign available dartboards to ready matches in the tournament.
+
+    A match is "ready" when it is PENDING, has no dartboard assigned, and has
+    enough players populated (2 for singles, 4 for doubles).
+
+    Uses row-level locking (with_for_update) on dartboards to prevent
+    double-booking when two matches complete concurrently. Runs within the
+    caller's transaction (before commit) so the assignment is atomic.
+    """
+    # Find PENDING matches in this tournament with no board assigned
+    ready_q = (
+        select(Match)
+        .options(selectinload(Match.match_players))
+        .where(
+            Match.tournament_id == tournament_id,
+            Match.status == MatchStatus.PENDING,
+            Match.dartboard_id.is_(None),
+        )
+        .order_by(Match.round_number, Match.match_number)
+    )
+    result = await db.execute(ready_q)
+    pending_matches = result.scalars().unique().all()
+
+    # Filter to matches that actually have enough players
+    ready_matches = []
+    for m in pending_matches:
+        is_doubles = any(mp.team_id for mp in m.match_players)
+        required = 4 if is_doubles else 2
+        players_with_ids = [mp for mp in m.match_players if mp.player_id]
+        if len(players_with_ids) >= required:
+            ready_matches.append(m)
+
+    if not ready_matches:
+        return
+
+    # Get available boards with row lock (lowest board number first)
+    board_q = (
+        select(Dartboard)
+        .where(Dartboard.is_available == True)
+        .order_by(Dartboard.number)
+        .with_for_update()
+    )
+    result = await db.execute(board_q)
+    available_boards = result.scalars().all()
+
+    if not available_boards:
+        return
+
+    # Assign boards: pair ready matches with available boards
+    for match_to_assign, board in zip(ready_matches, available_boards):
+        match_to_assign.dartboard_id = board.id
+        board.is_available = False
+
+    await db.flush()
+
+    # Send WebSocket notifications for each assignment
+    for match_to_assign, board in zip(ready_matches, available_boards):
+        try:
+            mp_result = await db.execute(
+                select(MatchPlayer, Player.name)
+                .join(Player, MatchPlayer.player_id == Player.id)
+                .where(MatchPlayer.match_id == match_to_assign.id)
+            )
+            match_player_rows = mp_result.all()
+
+            player_list = [
+                {
+                    "player_id": str(mp.player_id),
+                    "player_name": player_name,
+                    "team_id": str(mp.team_id) if mp.team_id else None,
+                }
+                for mp, player_name in match_player_rows
+            ]
+
+            await notify_board_assigned({
+                "match_id": str(match_to_assign.id),
+                "tournament_id": str(tournament_id),
+                "dartboard_number": board.number,
+                "dartboard_name": board.name,
+                "players": player_list,
+            })
+        except Exception as e:
+            logger.warning(f"Failed to send auto-assign board notification for match {match_to_assign.id}: {e}")
 
 
 async def _advance_team_in_bracket(match: Match, db: AsyncSession):
@@ -1310,6 +1398,10 @@ async def report_match_result(
                 other_player.reported_win = None
 
     await db.flush()
+
+    if match.status == MatchStatus.COMPLETED:
+        await _auto_assign_boards(match.tournament_id, db)
+
     await db.commit()
     await db.refresh(match)
 
