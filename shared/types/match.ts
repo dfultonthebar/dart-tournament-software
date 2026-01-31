@@ -14,6 +14,7 @@ export interface MatchPlayerInfo {
   legs_won: number;
   team_id?: string;
   team_position?: number;
+  on_my_way?: string | null;
   arrived_at_board?: string | null;
   reported_win?: boolean | null;
 }

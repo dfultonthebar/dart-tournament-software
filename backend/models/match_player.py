@@ -18,6 +18,7 @@ class MatchPlayer(BaseModel):
     team_position = Column(Integer, nullable=True)  # 1 or 2 within team
 
     # Board presence
+    on_my_way = Column(DateTime, nullable=True)  # When player indicated they're heading to the board
     arrived_at_board = Column(DateTime, nullable=True)  # When player indicated they're at the board
 
     # Self-reported result: True = "I won", False = "I lost", None = not yet reported

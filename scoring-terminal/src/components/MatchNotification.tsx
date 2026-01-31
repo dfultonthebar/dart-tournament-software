@@ -59,7 +59,7 @@ export default function MatchNotification({ notifications, onDismiss }: Props) {
     try {
       const token = localStorage.getItem('player_token')
       if (token) {
-        await fetch(`${getApiUrl()}/matches/${data.match_id}/arrive`, {
+        await fetch(`${getApiUrl()}/matches/${data.match_id}/on-my-way`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
         })

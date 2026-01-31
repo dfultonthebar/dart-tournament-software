@@ -10,6 +10,7 @@ class MatchPlayerInfo(BaseModel):
     position: int
     sets_won: int = 0
     legs_won: int = 0
+    on_my_way: Optional[datetime] = None
     arrived_at_board: Optional[datetime] = None
     reported_win: Optional[bool] = None
     team_id: Optional[UUID] = None

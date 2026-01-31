@@ -122,10 +122,17 @@ class ConnectionManager:
     async def send_to_player(self, message: dict, player_id: UUID):
         """Send message to all connections for a specific player."""
         player_id_str = str(player_id)
+        sent_count = 0
 
         for connection_id, metadata in self.connection_metadata.items():
             if metadata.get("player_id") == player_id_str:
                 await self.send_personal_message(message, connection_id)
+                sent_count += 1
+
+        if sent_count == 0:
+            logger.warning(f"No WS connections found for player {player_id_str[:8]}... ({len(self.connection_metadata)} total connections)")
+        else:
+            logger.info(f"Sent message to {sent_count} connection(s) for player {player_id_str[:8]}...")
 
     def get_topic_subscriber_count(self, topic: str) -> int:
         """Get number of subscribers for a topic."""

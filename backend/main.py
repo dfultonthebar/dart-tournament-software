@@ -191,6 +191,10 @@ async def websocket_endpoint(websocket: WebSocket, player_id: str = None):
             logger.warning(f"Invalid player_id in WebSocket connect: {player_id}")
 
     await manager.connect(websocket, connection_id, parsed_player_id)
+    if parsed_player_id:
+        logger.info(f"WebSocket connected with player_id: {parsed_player_id}")
+    else:
+        logger.info(f"WebSocket connected without player_id (connection: {connection_id[:8]}...)")
 
     # Send connection acknowledgment
     await manager.send_personal_message(

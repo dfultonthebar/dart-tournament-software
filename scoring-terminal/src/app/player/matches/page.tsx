@@ -12,6 +12,7 @@ interface MatchPlayer {
   position: number
   sets_won: number
   legs_won: number
+  on_my_way: string | null
   arrived_at_board: string | null
   reported_win: boolean | null
   team_id?: string | null
@@ -390,15 +391,19 @@ export default function PlayerMatches() {
                     <div className="text-center flex-1">
                       <p className="font-bold text-green-400">You</p>
                       <p className="text-sm text-gray-400">{playerName}</p>
-                      {me?.arrived_at_board && (
+                      {me?.arrived_at_board ? (
                         <p className="text-xs text-green-500 mt-1">At board</p>
-                      )}
+                      ) : me?.on_my_way ? (
+                        <p className="text-xs text-yellow-400 mt-1">On my way</p>
+                      ) : null}
                       {doubles && teammates.map(t => (
                         <div key={t.player_id}>
                           <p className="text-sm text-green-300">{getPlayerName(t.player_id)}</p>
-                          {t.arrived_at_board && (
+                          {t.arrived_at_board ? (
                             <p className="text-xs text-green-500">At board</p>
-                          )}
+                          ) : t.on_my_way ? (
+                            <p className="text-xs text-yellow-400">On my way</p>
+                          ) : null}
                         </div>
                       ))}
                     </div>
@@ -407,9 +412,11 @@ export default function PlayerMatches() {
                       <p className="font-bold">{opponentLabel}</p>
                       {opponents.map(opp => (
                         <span key={opp.player_id}>
-                          {opp.arrived_at_board && (
+                          {opp.arrived_at_board ? (
                             <p className="text-xs text-green-500 mt-1">At board</p>
-                          )}
+                          ) : opp.on_my_way ? (
+                            <p className="text-xs text-yellow-400 mt-1">On my way</p>
+                          ) : null}
                         </span>
                       ))}
                     </div>
@@ -496,9 +503,10 @@ export default function PlayerMatches() {
         <div className="mt-8 bg-gray-800 rounded-lg p-5">
           <h3 className="font-bold mb-3">How Matches Work</h3>
           <ol className="text-sm text-gray-400 space-y-2 list-decimal list-inside">
-            <li>When your match is ready, you&apos;ll see your assigned board number above.</li>
-            <li>Go to your board and tap <span className="text-yellow-400 font-medium">&quot;I&apos;m at the Board&quot;</span> to check in.</li>
-            <li>The match begins when both players check in.</li>
+            <li>When your match is ready, you&apos;ll get a notification with your board number.</li>
+            <li>Tap <span className="text-green-400 font-medium">&quot;I&apos;m On My Way&quot;</span> to let everyone know you&apos;re heading over.</li>
+            <li>When you get to the board, tap <span className="text-yellow-400 font-medium">&quot;I&apos;m at the Board&quot;</span> to check in.</li>
+            <li>The match begins when all players check in at the board.</li>
             <li>After playing, both players report the result by tapping <span className="text-green-400 font-medium">&quot;I Won&quot;</span> or <span className="text-red-400 font-medium">&quot;I Lost&quot;</span>.</li>
             <li>When both players agree, the winner advances automatically.</li>
           </ol>

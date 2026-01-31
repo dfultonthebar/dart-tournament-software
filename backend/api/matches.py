@@ -1000,6 +1000,54 @@ async def create_game(
     return game
 
 
+@router.post("/{match_id}/on-my-way", response_model=MatchResponse)
+async def player_on_my_way(
+    match_id: UUID,
+    current_player: Player = Depends(get_current_admin_or_player),
+    db: AsyncSession = Depends(get_db)
+):
+    """Player indicates they are heading to their assigned dartboard."""
+    if isinstance(current_player, Admin):
+        raise HTTPException(status_code=400, detail="Only players can mark on-my-way")
+
+    result = await db.execute(
+        select(Match)
+        .options(selectinload(Match.match_players))
+        .where(Match.id == match_id)
+    )
+    match = result.scalar_one_or_none()
+
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    if match.status not in (MatchStatus.PENDING, MatchStatus.WAITING_FOR_PLAYERS):
+        raise HTTPException(status_code=400, detail="Match is not waiting for players")
+
+    match_player = None
+    for mp in match.match_players:
+        if mp.player_id == current_player.id:
+            match_player = mp
+            break
+
+    if not match_player:
+        raise HTTPException(status_code=403, detail="You are not in this match")
+
+    if match_player.on_my_way:
+        # Already marked, just return success
+        return match
+
+    match_player.on_my_way = datetime.utcnow()
+
+    # Move to waiting_for_players if still pending
+    if match.status == MatchStatus.PENDING and match.dartboard_id:
+        match.status = MatchStatus.WAITING_FOR_PLAYERS
+
+    await db.flush()
+    await db.refresh(match)
+
+    return match
+
+
 @router.post("/{match_id}/arrive", response_model=MatchResponse)
 async def player_arrive_at_board(
     match_id: UUID,
@@ -1036,7 +1084,11 @@ async def player_arrive_at_board(
     if match_player.arrived_at_board:
         raise HTTPException(status_code=400, detail="Already marked as arrived")
 
-    match_player.arrived_at_board = datetime.utcnow()
+    now = datetime.utcnow()
+    # Also set on_my_way if not already set (player went straight to board)
+    if not match_player.on_my_way:
+        match_player.on_my_way = now
+    match_player.arrived_at_board = now
 
     # If board is assigned but match is still pending, move to waiting_for_players
     if match.status == MatchStatus.PENDING and match.dartboard_id:
