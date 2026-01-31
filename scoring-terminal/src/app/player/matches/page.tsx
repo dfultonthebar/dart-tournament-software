@@ -162,13 +162,13 @@ export default function PlayerMatches() {
       })
   }, [router, loadData])
 
-  // Auto-refresh every 15 seconds
+  // Auto-refresh every 30 seconds (fallback — primary updates come via WebSocket in layout)
   useEffect(() => {
     if (!playerId) return
     const interval = setInterval(() => {
       const token = localStorage.getItem('player_token')
       if (token) loadData(token, playerId)
-    }, 15000)
+    }, 30000)
     return () => clearInterval(interval)
   }, [playerId, loadData])
 

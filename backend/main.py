@@ -165,9 +165,13 @@ async def server_info():
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, player_id: str = None):
     """
     WebSocket endpoint for real-time updates.
+
+    Query params:
+        player_id: Optional player UUID. When provided, enables direct
+                   player-targeted messages (e.g. board assignment notifications).
 
     Message format:
     {
@@ -178,7 +182,15 @@ async def websocket_endpoint(websocket: WebSocket):
     """
     connection_id = str(uuid.uuid4())
 
-    await manager.connect(websocket, connection_id)
+    # Parse player_id if provided
+    parsed_player_id = None
+    if player_id:
+        try:
+            parsed_player_id = uuid.UUID(player_id)
+        except ValueError:
+            logger.warning(f"Invalid player_id in WebSocket connect: {player_id}")
+
+    await manager.connect(websocket, connection_id, parsed_player_id)
 
     # Send connection acknowledgment
     await manager.send_personal_message(

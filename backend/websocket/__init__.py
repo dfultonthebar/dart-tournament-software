@@ -9,6 +9,7 @@ from backend.websocket.handlers import (
     notify_game_updated,
     notify_tournament_started,
     notify_tournament_updated,
+    notify_board_assigned,
 )
 
 __all__ = [
@@ -23,4 +24,5 @@ __all__ = [
     "notify_game_updated",
     "notify_tournament_started",
     "notify_tournament_updated",
+    "notify_board_assigned",
 ]

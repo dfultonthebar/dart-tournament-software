@@ -4,11 +4,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from uuid import UUID
+import logging
 
 from backend.core import get_db
-from backend.models import Dartboard, Match, MatchStatus
+from backend.models import Dartboard, Match, MatchStatus, MatchPlayer, Player
 from backend.schemas import DartboardCreate, DartboardUpdate, DartboardResponse
 from backend.api.auth import get_current_admin_or_player
+from backend.websocket import notify_board_assigned
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dartboards", tags=["dartboards"])
 
@@ -214,6 +218,35 @@ async def assign_board_to_match(
 
     await db.flush()
     await db.refresh(dartboard)
+
+    # Notify players via WebSocket
+    try:
+        # Load match players with their player names
+        mp_result = await db.execute(
+            select(MatchPlayer, Player.name)
+            .join(Player, MatchPlayer.player_id == Player.id)
+            .where(MatchPlayer.match_id == match_id)
+        )
+        match_player_rows = mp_result.all()
+
+        player_list = [
+            {
+                "player_id": str(mp.player_id),
+                "player_name": player_name,
+                "team_id": str(mp.team_id) if mp.team_id else None,
+            }
+            for mp, player_name in match_player_rows
+        ]
+
+        await notify_board_assigned({
+            "match_id": str(match_id),
+            "tournament_id": str(match.tournament_id),
+            "dartboard_number": dartboard.number,
+            "dartboard_name": dartboard.name,
+            "players": player_list,
+        })
+    except Exception as e:
+        logger.warning(f"Failed to send board assignment notification: {e}")
 
     return dartboard
 

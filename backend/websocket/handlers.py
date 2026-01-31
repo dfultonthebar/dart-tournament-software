@@ -32,6 +32,9 @@ class WebSocketEvents:
     TOURNAMENT_UPDATED = "tournament:updated"
     TOURNAMENT_COMPLETED = "tournament:completed"
 
+    # Board events
+    BOARD_ASSIGNED = "board:assigned"
+
     # Player events
     PLAYER_JOINED = "player:joined"
     PLAYER_LEFT = "player:left"
@@ -186,3 +189,40 @@ async def notify_tournament_started(tournament_data: Dict[str, Any]):
 async def notify_tournament_updated(tournament_data: Dict[str, Any]):
     """Notify that a tournament has been updated."""
     await WebSocketHandler.handle_tournament_event(WebSocketEvents.TOURNAMENT_UPDATED, tournament_data)
+
+
+async def notify_board_assigned(data: Dict[str, Any]):
+    """Notify players that a board has been assigned to their match.
+
+    Sends a direct message to each player in the match, plus broadcasts
+    to the match and tournament topics.
+
+    Expected data keys:
+        match_id, tournament_id, dartboard_number, dartboard_name,
+        players: [{player_id, player_name, team_id}]
+    """
+    message = {
+        "type": WebSocketEvents.BOARD_ASSIGNED,
+        "data": data,
+    }
+
+    # Send directly to each player in the match
+    players = data.get("players", [])
+    for player in players:
+        player_id = player.get("player_id")
+        if player_id:
+            try:
+                await manager.send_to_player(message, UUID(player_id))
+            except ValueError:
+                logger.debug(f"Invalid player_id UUID in board assignment: {player_id}")
+
+    # Also broadcast to match and tournament topics for other subscribers
+    match_id = data.get("match_id")
+    if match_id:
+        await manager.broadcast(message, f"match:{match_id}")
+
+    tournament_id = data.get("tournament_id")
+    if tournament_id:
+        await manager.broadcast(message, f"tournament:{tournament_id}")
+
+    logger.info(f"Notified board assignment for match {match_id}")

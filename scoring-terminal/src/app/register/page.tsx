@@ -205,6 +205,14 @@ function RegisterContent() {
                 Your account has been created with a PIN for mobile access.
               </p>
 
+              {/* Keep site open notice */}
+              <div className="bg-yellow-900/40 border border-yellow-600 rounded-lg p-4 text-left">
+                <p className="font-bold text-yellow-400">Keep this site open on your phone!</p>
+                <p className="text-sm text-yellow-200/80 mt-1">
+                  You&apos;ll get a sound notification when your match is ready and your board is assigned. Go to &quot;My Matches&quot; below and keep the tab open.
+                </p>
+              </div>
+
               <div className="bg-gray-800 rounded-lg p-6 space-y-4">
                 <h2 className="text-lg font-bold">How It Works</h2>
                 <div className="flex gap-3 text-left">
@@ -217,8 +225,8 @@ function RegisterContent() {
                 <div className="flex gap-3 text-left">
                   <div className="flex-shrink-0 w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center font-bold text-sm">2</div>
                   <div>
-                    <p className="font-medium">Check Your Matches</p>
-                    <p className="text-sm text-gray-400">See your board and opponent in &quot;My Matches&quot;.</p>
+                    <p className="font-medium">Get Notified</p>
+                    <p className="text-sm text-gray-400">When your board is assigned, you&apos;ll hear a chime and see your board number.</p>
                   </div>
                 </div>
                 <div className="flex gap-3 text-left">
@@ -232,16 +240,16 @@ function RegisterContent() {
 
               <div className="flex gap-3">
                 <Link
-                  href="/player/tournaments"
-                  className="flex-1 block py-4 bg-blue-600 hover:bg-blue-700 rounded-lg text-center font-bold no-underline text-white transition"
-                >
-                  View Tournaments
-                </Link>
-                <Link
                   href="/player/matches"
-                  className="flex-1 block py-4 bg-green-600 hover:bg-green-700 rounded-lg text-center font-bold no-underline text-white transition"
+                  className="flex-[2] block py-4 bg-green-600 hover:bg-green-700 rounded-lg text-center font-bold no-underline text-white transition"
                 >
                   My Matches
+                </Link>
+                <Link
+                  href="/player/tournaments"
+                  className="flex-1 block py-4 bg-gray-700 hover:bg-gray-600 rounded-lg text-center font-bold no-underline text-white transition"
+                >
+                  Tournaments
                 </Link>
               </div>
             </div>

@@ -12,13 +12,31 @@ class WebSocketClient {
   private subscriptions: Set<string> = new Set();
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private pingInterval: ReturnType<typeof setInterval> | null = null;
+  private playerId: string | null = null;
+
+  setPlayerId(id: string | null) {
+    if (this.playerId === id) return;
+    this.playerId = id;
+    // Reconnect with the new player identity
+    this.disconnect();
+    this.connect();
+    this.startPing();
+  }
+
+  getPlayerId(): string | null {
+    return this.playerId;
+  }
 
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN) {
       return;
     }
 
-    this.ws = new WebSocket(getWsUrl());
+    let url = getWsUrl();
+    if (this.playerId) {
+      url += `?player_id=${encodeURIComponent(this.playerId)}`;
+    }
+    this.ws = new WebSocket(url);
 
     this.ws.onopen = () => {
       console.log('WebSocket connected');
