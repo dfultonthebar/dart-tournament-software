@@ -725,6 +725,38 @@ When helping users, determine:
 
 ---
 
+## Auto-Start on Boot (systemd)
+
+All four services are configured as user-level systemd services with lingering enabled.
+They start automatically on machine reboot — no login required.
+
+**Service files:** `~/.config/systemd/user/dart-{backend,scoring,display,mobile}.service`
+
+```bash
+# Check status of all services
+systemctl --user status dart-backend dart-scoring dart-display dart-mobile
+
+# View logs
+journalctl --user -u dart-backend -f     # Follow backend logs
+journalctl --user -u dart-scoring -f     # Follow scoring logs
+
+# Manual control
+systemctl --user stop dart-backend       # Stop one service
+systemctl --user restart dart-backend    # Restart one service
+
+# Stop everything (also stops systemd services)
+./stop-prod.sh
+
+# Rebuild & start via tmux (stops systemd services first to avoid conflicts)
+./start-prod.sh
+```
+
+**Boot order:** PostgreSQL + Redis (system services) → dart-backend (5s delay) → frontends (3s delay after backend)
+
+**Note:** `start-prod.sh` and `stop-prod.sh` automatically stop systemd services to avoid port conflicts. After reboot, systemd takes over again.
+
+---
+
 ## Operational Notes
 
 - **LAN IP:** `192.168.1.22` (may change if DHCP lease renews)

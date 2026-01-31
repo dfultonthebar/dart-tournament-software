@@ -1,5 +1,5 @@
 [Unit]
-Description=Dart Tournament Scoring Terminal
+Description=Dart Tournament Display Terminal
 After=network.target dart-backend.service
 Wants=dart-backend.service
 
@@ -7,9 +7,9 @@ Wants=dart-backend.service
 Type=simple
 User=darts-admin
 Group=darts-admin
-WorkingDirectory=/home/darts-admin/DartTournament/scoring-terminal
+WorkingDirectory=/home/darts-admin/DartTournament/display-terminal
 Environment="NODE_ENV=production"
-ExecStart=/home/darts-admin/DartTournament/node_modules/.bin/next start -p 3001
+ExecStart=/home/darts-admin/DartTournament/node_modules/.bin/next start -p 3002
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal

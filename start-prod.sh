@@ -31,6 +31,14 @@ if ! command -v tmux &> /dev/null; then
     exit 1
 fi
 
+# Stop systemd services if running (to avoid port conflicts)
+for svc in dart-backend dart-scoring dart-display dart-mobile; do
+    if systemctl --user is-active "$svc.service" &>/dev/null; then
+        log_warn "Stopping systemd service: $svc"
+        systemctl --user stop "$svc.service"
+    fi
+done
+
 # Kill any existing sessions (both dev and prod)
 for sess in "dart-tournament-dev" "dart-tournament"; do
     if tmux has-session -t "$sess" 2>/dev/null; then

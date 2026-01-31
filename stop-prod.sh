@@ -11,13 +11,33 @@ NC='\033[0m'
 log_info()  { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 
-if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
-    log_warn "Session '$SESSION_NAME' is not running."
+# Check if anything is running
+SYSTEMD_RUNNING=false
+for svc in dart-backend dart-scoring dart-display dart-mobile; do
+    if systemctl --user is-active "$svc.service" &>/dev/null; then
+        SYSTEMD_RUNNING=true
+        break
+    fi
+done
+
+if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null && [ "$SYSTEMD_RUNNING" = false ]; then
+    log_warn "No production services are running."
     exit 0
 fi
 
 log_info "Stopping production environment..."
-tmux kill-session -t "$SESSION_NAME"
+
+# Stop systemd services if running
+for svc in dart-backend dart-scoring dart-display dart-mobile; do
+    if systemctl --user is-active "$svc.service" &>/dev/null; then
+        log_warn "Stopping systemd service: $svc"
+        systemctl --user stop "$svc.service"
+    fi
+done
+
+if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+    tmux kill-session -t "$SESSION_NAME"
+fi
 
 # Clean up lingering processes
 KILLED_ANY=false
