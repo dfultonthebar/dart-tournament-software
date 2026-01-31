@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import RegistrationQRCode from '@/components/RegistrationQRCode'
 import { getApiUrl } from '@shared/lib/api-url'
@@ -11,6 +11,8 @@ interface Tournament {
   game_type: string
   format: string
   status: string
+  end_time?: string | null
+  updated_at: string
 }
 
 interface Player {
@@ -68,6 +70,36 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false)
   const [showQRCode, setShowQRCode] = useState(false) // Track if QR code slide is active
   const [enableQRSlide, setEnableQRSlide] = useState(false) // QR disabled by default, admin controls it
+  const [scale, setScale] = useState(1)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const bracketRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scale bracket to fit viewport
+  const updateScale = useCallback(() => {
+    if (!containerRef.current || !bracketRef.current) return
+    const container = containerRef.current.getBoundingClientRect()
+    const bracket = bracketRef.current
+    // Reset scale to measure natural size
+    bracket.style.transform = 'scale(1)'
+    const natural = bracket.getBoundingClientRect()
+    const scaleX = (container.width - 32) / natural.width
+    const scaleY = (container.height - 32) / natural.height
+    const newScale = Math.min(scaleX, scaleY, 1)
+    setScale(Math.max(newScale, 0.2))
+  }, [])
+
+  // Re-scale on window resize and when matches change
+  useEffect(() => {
+    updateScale()
+    window.addEventListener('resize', updateScale)
+    return () => window.removeEventListener('resize', updateScale)
+  }, [updateScale, matches])
+
+  // Re-scale when slideshow advances to a different tournament
+  useEffect(() => {
+    const timer = setTimeout(updateScale, 100)
+    return () => clearTimeout(timer)
+  }, [currentIndex, updateScale])
 
   // Load slideshow settings from localStorage + API
   useEffect(() => {
@@ -139,10 +171,19 @@ export default function Home() {
     try {
       const response = await fetch(`${getApiUrl()}/tournaments`)
       const data = await response.json()
-      const active = data.filter((t: Tournament) =>
-        t.status === 'in_progress' || t.status === 'completed'
-      )
+      const now = Date.now()
+      const ONE_HOUR_MS = 60 * 60 * 1000
+      const active = data.filter((t: Tournament) => {
+        if (t.status === 'in_progress') return true
+        if (t.status === 'completed') {
+          const completedAt = t.end_time || t.updated_at
+          if (!completedAt) return false
+          return (now - new Date(completedAt).getTime()) < ONE_HOUR_MS
+        }
+        return false
+      })
       setTournaments(active)
+      setCurrentIndex(prev => active.length > 0 ? Math.min(prev, active.length - 1) : 0)
 
       // Also load players and dartboards
       const [playersRes, dartboardsRes] = await Promise.all([
@@ -287,7 +328,7 @@ export default function Home() {
   const totalRounds = Math.max(calculatedTotalRounds, ...rounds, 1)
 
   return (
-    <main className="min-h-screen p-4 relative">
+    <main className="h-screen p-4 relative flex flex-col overflow-hidden">
       {/* Settings Modal */}
       {showSettings && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
@@ -418,8 +459,8 @@ export default function Home() {
           <p className="text-xl text-gray-400">No matches yet</p>
         </div>
       ) : (
-        <div className="bracket-container">
-          <div className="bracket-wrapper">
+        <div className="bracket-container" ref={containerRef}>
+          <div className="bracket-wrapper" ref={bracketRef} style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}>
             {rounds.map(round => (
               <div key={round} className="bracket-round">
                 <div className="round-header">

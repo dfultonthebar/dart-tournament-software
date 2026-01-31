@@ -376,8 +376,8 @@ body {
   justify-content: center;
   align-items: center;
   padding: 2rem;
-  min-height: calc(100vh - 200px);
-  overflow-x: auto;
+  overflow: hidden;
+  flex: 1;
 }
 
 .bracket-wrapper {
