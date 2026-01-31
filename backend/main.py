@@ -51,10 +51,12 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
+# CORS middleware — allow any host on our frontend ports so phones on the
+# LAN can reach the API (not just localhost).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=r"^http://.*:(3001|3002|3003)$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

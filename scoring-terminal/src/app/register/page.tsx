@@ -20,6 +20,7 @@ interface FormErrors {
   name?: string
   email?: string
   phone?: string
+  gender?: string
   pin?: string
 }
 
@@ -73,6 +74,10 @@ function RegisterContent() {
 
     if (!formData.phone.trim()) {
       newErrors.phone = 'Phone number is required'
+    }
+
+    if (!formData.gender) {
+      newErrors.gender = 'Gender is required for co-ed tournament pairings'
     }
 
     if (showPinFields) {
@@ -318,18 +323,23 @@ function RegisterContent() {
             )}
           </div>
 
-          {/* Gender Field */}
+          {/* Gender Field — required for co-ed lucky draw pairings */}
           <div>
             <label className="block text-sm font-medium mb-2">
-              Gender <span className="text-gray-500">(optional)</span>
+              Gender <span className="text-red-400">*</span>
             </label>
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() => setFormData({ ...formData, gender: formData.gender === 'M' ? '' : 'M' })}
+                onClick={() => {
+                  setFormData({ ...formData, gender: 'M' })
+                  if (errors.gender) setErrors({ ...errors, gender: undefined })
+                }}
                 className={`flex-1 p-4 rounded-lg border text-lg font-medium transition-colors ${
                   formData.gender === 'M'
                     ? 'bg-blue-600 border-blue-500 text-white'
+                    : errors.gender
+                    ? 'bg-gray-700 border-red-500 text-gray-300'
                     : 'bg-gray-700 border-gray-600 text-gray-300 hover:border-gray-500'
                 }`}
               >
@@ -337,16 +347,24 @@ function RegisterContent() {
               </button>
               <button
                 type="button"
-                onClick={() => setFormData({ ...formData, gender: formData.gender === 'F' ? '' : 'F' })}
+                onClick={() => {
+                  setFormData({ ...formData, gender: 'F' })
+                  if (errors.gender) setErrors({ ...errors, gender: undefined })
+                }}
                 className={`flex-1 p-4 rounded-lg border text-lg font-medium transition-colors ${
                   formData.gender === 'F'
                     ? 'bg-pink-600 border-pink-500 text-white'
+                    : errors.gender
+                    ? 'bg-gray-700 border-red-500 text-gray-300'
                     : 'bg-gray-700 border-gray-600 text-gray-300 hover:border-gray-500'
                 }`}
               >
                 Female
               </button>
             </div>
+            {errors.gender && (
+              <p className="text-red-400 text-sm mt-1">{errors.gender}</p>
+            )}
           </div>
 
           {/* Email Field */}

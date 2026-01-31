@@ -14,15 +14,19 @@ This document provides guidance for AI assistants (like Claude Code) working wit
 ### Quick Start (Single Machine, No Docker)
 
 ```bash
-# Start all services (opens tmux with all 4 servers)
+# PRODUCTION — use this for running actual tournaments
 cd ~/DartTournament
-./start-dev.sh
+./start-prod.sh          # builds all frontends, then serves them
+./stop-prod.sh           # stop production servers
 
-# Or use the desktop launcher: "Dart Tournament" in Applications menu
-
-# Stop all services
-./stop-dev.sh
+# DEVELOPMENT — only use this when actively writing code
+./start-dev.sh           # hot-reload dev servers (fragile .next cache)
+./stop-dev.sh            # stop dev servers
 ```
+
+**IMPORTANT:** Never run `npx next build` while dev servers are running — it
+corrupts the `.next` cache and causes 404 errors. Use `start-prod.sh` for
+stable operation; it builds everything before starting.
 
 ### Services & Ports
 | Service           | Port | URL                        |
@@ -425,6 +429,21 @@ npm run build:all                 # Build all frontends
 cd backend && docker build        # Build backend container
 ```
 
+## Business Rules — Do Not Change
+
+These are deliberate design decisions from the bar owner. Do not remove or make optional.
+
+- **Gender is REQUIRED on the player registration form.** It is used for co-ed lucky draw
+  tournament pairings (male/female team matching). It must not be made optional or removed.
+- **Player registration requires:** name, gender, email, phone. PIN is optional (for mobile access).
+- **QR code on the display terminal** points players to the scoring terminal registration
+  page (`http://<LAN_IP>:3001/register`). Players must be on the Customer WiFi.
+- **Mobile app (port 3003) is read-only** — players cannot submit scores from it. Only the
+  scoring terminal (port 3001) allows score entry, protected behind admin JWT auth.
+- **Production mode (`start-prod.sh`)** should be used for running tournaments. Dev mode
+  (`start-dev.sh`) is only for active code changes. Never run `npx next build` while dev
+  servers are running — it corrupts the `.next` cache.
+
 ## For AI Assistants: Key Behaviors
 
 1. **Start with documentation** - Check IMPLEMENTATION_SUMMARY.md and PROJECT_SPEC.md first
@@ -484,7 +503,7 @@ When helping users, determine:
 
 (All items from the original audit have been addressed — see Fixed in This Session.)
 
-### Fixed in This Session
+### Fixed — Session 2026-01-28
 
 - Shared `MatchStatus` enum: added `WAITING_FOR_PLAYERS`, `DISPUTED`
 - Shared `MatchPlayerInfo`: added `arrived_at_board`, `reported_win`
@@ -501,6 +520,36 @@ When helping users, determine:
 - `getApiUrl()` duplicated in ~20 files: shared utility created at `shared/lib/api-url.ts`
 - `api.ts` uses hardcoded localhost: now uses `getApiUrl`/`getWsUrl` from shared utility
 - ESLint not installed: installed in all frontends with `next/core-web-vitals` config
+
+### Fixed — Session 2026-01-30 (10-Bug Audit)
+
+- Bracket page crash: added `.ok` guards on API responses in `display-terminal/src/app/brackets/[id]/page.tsx`
+- CORS default: changed from `["*"]` to specific localhost origins in `backend/core/config.py`
+- Dartboard race condition: added `with_for_update()` on old board in `backend/api/dartboards.py`
+- Database indexes: added 3 indexes on matches table (`tournament_id`, `status`, `tournament_id+bracket_position`)
+- Doubles match validation: fixed vacuous truth bug in `all_arrived` check in `backend/api/matches.py`
+- WebSocket exception logging: replaced silent `except: pass` with `logger.warning` in `backend/api/matches.py` and `backend/websocket/handlers.py`
+- QR code: uses `getApiUrl()` instead of hardcoded port, points to scoring terminal (port 3001)
+- SECRET_KEY startup warning: added check in `backend/main.py` lifespan
+- `catch(err: any)` replaced with typed `catch(err)` + `getErrorMessage()` across 34 instances in 15 files
+- Mobile app dependencies updated to match other frontends (Next.js 14.2.35, React 18.3.1)
+
+### Fixed — Session 2026-01-31
+
+- CORS: added `allow_origin_regex` in `backend/main.py` so phones on the LAN can reach the API (not just localhost)
+- Gender field: made required on registration form (was incorrectly labeled optional)
+- Production scripts: created `start-prod.sh` / `stop-prod.sh` for stable tournament operation
+- `.next` cache corruption: root cause documented — never run `npx next build` while dev servers are running
+
+---
+
+## Operational Notes
+
+- **LAN IP:** `192.168.1.22` (may change if DHCP lease renews)
+- **Customer WiFi:** Players must connect to "Customer WiFi" network to access the scoring terminal
+- **Swap:** System uses disk swap at `/swap.img`, swappiness set to 10
+- **Desktop launcher:** "Dart Tournament" in Applications menu (runs start-dev.sh)
+- **npm workspaces:** `node_modules` is hoisted to the project root. All frontends share the same Next.js/React installation. This means you must `cd` into the correct subdirectory before running `npx next build` or `npx next start`.
 
 ---
 
