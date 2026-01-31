@@ -174,6 +174,51 @@ Grand Final (with optional reset match).
 
 **Test script:** `test_double_elim.js`
 
+### Board Assignment Notifications Feature (2026-01-31)
+
+Real-time push notifications to player phones when an admin assigns a dartboard to
+their match. Uses WebSocket with player identity for targeted delivery. Two-step
+arrival flow: "I'm On My Way" then "I'm at the Board".
+
+**Backend files modified:**
+- `backend/main.py` — WebSocket `/ws` endpoint accepts optional `?player_id=` query param
+- `backend/websocket/handlers.py` — `BOARD_ASSIGNED` event, `notify_board_assigned()` function
+- `backend/websocket/__init__.py` — exports `notify_board_assigned`
+- `backend/websocket/connection.py` — `send_to_player()` with delivery logging
+- `backend/api/dartboards.py` — calls `notify_board_assigned()` after board assignment
+- `backend/api/matches.py` — new `POST /matches/{id}/on-my-way` endpoint
+- `backend/models/match_player.py` — `on_my_way` column (DateTime, nullable)
+- `backend/schemas/match.py` — `on_my_way` field in `MatchPlayerInfo`
+
+**Frontend files modified/created:**
+- `shared/types/websocket.ts` — `BOARD_ASSIGNED` event type, `BoardAssignedData` interface
+- `shared/types/match.ts` — `on_my_way` field in `MatchPlayerInfo`
+- `scoring-terminal/src/lib/websocket.ts` — `setPlayerId()`, `intentionalDisconnect` flag
+- `scoring-terminal/src/components/MatchNotification.tsx` — (NEW) full-screen notification overlay
+- `scoring-terminal/src/app/player/layout.tsx` — (NEW) wraps all `/player/*` routes with WS + notifications
+- `scoring-terminal/src/app/player/matches/page.tsx` — three-state arrival display, reduced polling to 30s
+- `scoring-terminal/src/app/register/page.tsx` — "keep site open" notice on registration success
+
+**Database columns added:**
+- `match_players.on_my_way` (DateTime, nullable) — when player indicated they're heading to the board
+
+**Two-step arrival flow:**
+1. Admin assigns board → `board:assigned` WebSocket event sent to each player in match
+2. Player's phone shows full-screen overlay with board number, opponent names, chime + vibration
+3. Player taps "I'm On My Way" → calls `POST /matches/{id}/on-my-way`, sets `on_my_way` timestamp
+4. Player arrives at board, taps "I'm at the Board" → calls `POST /matches/{id}/arrive`, sets `arrived_at_board`
+5. Match auto-starts when ALL players have completed step 4
+
+**Audio:** Web Audio API three-tone chime (E5→A5→E6) via OscillatorNode, with AudioContext
+priming on every touch/click for mobile browser compatibility. Works on Android; iOS silent
+switch may mute it.
+
+**Key implementation details:**
+- Player layout (`/player/layout.tsx`) wraps all player pages — notifications work on any page
+- WebSocket reconnects with `player_id` after auth, handles phone sleep via `visibilitychange`
+- `intentionalDisconnect` flag prevents reconnect race condition on `setPlayerId()`
+- Notification queue: multiple notifications shown one at a time
+
 ## Working with This System
 
 ### As a System Expert
@@ -289,12 +334,13 @@ See `docs/API.md` for complete API reference.
 
 ### WebSocket Events
 
-Real-time updates via WebSocket:
+Real-time updates via WebSocket (`/ws?player_id=UUID`):
 
 - `tournament:update` - Tournament status changes
 - `match:update` - Match status/score changes
 - `game:update` - Game state changes
 - `score:update` - Individual throw scored
+- `board:assigned` - Board assigned to a match (sent directly to each player in the match)
 
 ### Environment Setup
 
@@ -540,6 +586,9 @@ When helping users, determine:
 - Gender field: made required on registration form (was incorrectly labeled optional)
 - Production scripts: created `start-prod.sh` / `stop-prod.sh` for stable tournament operation
 - `.next` cache corruption: root cause documented — never run `npx next build` while dev servers are running
+- Board assignment notifications: real-time WebSocket push to player phones with two-step arrival flow
+- WebSocket reconnect race condition: `intentionalDisconnect` flag prevents `onclose` from racing `setPlayerId`
+- Web Audio API chime: replaced silent base64 WAV with three-tone oscillator chime for mobile notification sound
 
 ---
 
