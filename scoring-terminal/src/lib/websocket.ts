@@ -13,14 +13,18 @@ class WebSocketClient {
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private pingInterval: ReturnType<typeof setInterval> | null = null;
   private playerId: string | null = null;
+  private intentionalDisconnect = false;
 
   setPlayerId(id: string | null) {
     if (this.playerId === id) return;
     this.playerId = id;
-    // Reconnect with the new player identity
+    // Reconnect with the new player identity after a brief delay
+    // to let any in-flight connection close cleanly
     this.disconnect();
-    this.connect();
-    this.startPing();
+    setTimeout(() => {
+      this.connect();
+      this.startPing();
+    }, 100);
   }
 
   getPlayerId(): string | null {
@@ -28,9 +32,11 @@ class WebSocketClient {
   }
 
   connect() {
-    if (this.ws?.readyState === WebSocket.OPEN) {
+    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) {
       return;
     }
+
+    this.intentionalDisconnect = false;
 
     let url = getWsUrl();
     if (this.playerId) {
@@ -39,7 +45,7 @@ class WebSocketClient {
     this.ws = new WebSocket(url);
 
     this.ws.onopen = () => {
-      console.log('WebSocket connected');
+      console.log('WebSocket connected' + (this.playerId ? ` (player: ${this.playerId.slice(0, 8)}...)` : ''));
       this.reconnectAttempts = 0;
 
       // Resubscribe to topics
@@ -63,7 +69,9 @@ class WebSocketClient {
 
     this.ws.onclose = () => {
       console.log('WebSocket disconnected');
-      this.attemptReconnect();
+      if (!this.intentionalDisconnect) {
+        this.attemptReconnect();
+      }
     };
   }
 
@@ -83,6 +91,7 @@ class WebSocketClient {
   }
 
   disconnect() {
+    this.intentionalDisconnect = true;
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
@@ -92,9 +101,11 @@ class WebSocketClient {
       this.pingInterval = null;
     }
     if (this.ws) {
+      this.ws.onclose = null; // Prevent onclose from firing attemptReconnect
       this.ws.close();
       this.ws = null;
     }
+    this.reconnectAttempts = 0;
   }
 
   subscribe(topic: string) {

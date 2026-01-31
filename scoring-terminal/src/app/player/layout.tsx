@@ -56,11 +56,12 @@ export default function PlayerLayout({ children }: { children: React.ReactNode }
         return res.json()
       })
       .then(data => {
+        console.log('[PlayerLayout] Got player ID:', data.id)
         setPlayerId(data.id)
         wsClient.setPlayerId(data.id)
       })
-      .catch(() => {
-        // Not logged in — no WS player identity
+      .catch((err) => {
+        console.warn('[PlayerLayout] Auth failed, no WS identity:', err)
       })
   }, [])
 
