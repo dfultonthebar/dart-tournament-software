@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getApiUrl } from '@shared/lib/api-url'
 import { getErrorMessage } from '@shared/lib/error-message'
+import { wsClient } from '@/lib/websocket'
 
 interface MatchPlayer {
   player_id: string
@@ -155,6 +156,7 @@ export default function PlayerMatches() {
       .then(res => res.json())
       .then(data => {
         setPlayerId(data.id)
+        wsClient.setPlayerId(data.id)
         loadData(token, data.id)
       })
       .catch(() => {

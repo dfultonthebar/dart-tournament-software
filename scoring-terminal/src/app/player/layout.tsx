@@ -8,34 +8,79 @@ import MatchNotification, { MatchNotificationItem } from '@/components/MatchNoti
 
 let notifCounter = 0
 
+/** Play a two-tone chime using the Web Audio API. Works on mobile after any user tap. */
+function playChime(audioCtx: AudioContext) {
+  const now = audioCtx.currentTime
+
+  // First tone: E5 (659 Hz)
+  const osc1 = audioCtx.createOscillator()
+  const gain1 = audioCtx.createGain()
+  osc1.type = 'sine'
+  osc1.frequency.value = 659
+  gain1.gain.setValueAtTime(0.4, now)
+  gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.3)
+  osc1.connect(gain1)
+  gain1.connect(audioCtx.destination)
+  osc1.start(now)
+  osc1.stop(now + 0.3)
+
+  // Second tone: A5 (880 Hz), starts after a short gap
+  const osc2 = audioCtx.createOscillator()
+  const gain2 = audioCtx.createGain()
+  osc2.type = 'sine'
+  osc2.frequency.value = 880
+  gain2.gain.setValueAtTime(0.4, now + 0.15)
+  gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.5)
+  osc2.connect(gain2)
+  gain2.connect(audioCtx.destination)
+  osc2.start(now + 0.15)
+  osc2.stop(now + 0.5)
+
+  // Third tone: E6 (1319 Hz), completes the chime
+  const osc3 = audioCtx.createOscillator()
+  const gain3 = audioCtx.createGain()
+  osc3.type = 'sine'
+  osc3.frequency.value = 1319
+  gain3.gain.setValueAtTime(0.3, now + 0.3)
+  gain3.gain.exponentialRampToValueAtTime(0.01, now + 0.8)
+  osc3.connect(gain3)
+  gain3.connect(audioCtx.destination)
+  osc3.start(now + 0.3)
+  osc3.stop(now + 0.8)
+}
+
+// Shared AudioContext — created on first user interaction, reused for all chimes
+let sharedAudioCtx: AudioContext | null = null
+
+function getOrCreateAudioCtx(): AudioContext {
+  if (!sharedAudioCtx) {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    sharedAudioCtx = new AudioCtx()
+  }
+  return sharedAudioCtx
+}
+
 export default function PlayerLayout({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<MatchNotificationItem[]>([])
   const [playerId, setPlayerId] = useState<string | null>(null)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const audioPrimed = useRef(false)
 
-  // Prime audio context on first user interaction (mobile browsers block autoplay)
+  // Prime AudioContext on first user interaction (mobile browsers require this)
   useEffect(() => {
     function primeAudio() {
-      if (audioPrimed.current) return
-      audioPrimed.current = true
-
-      // Create a short silent audio to unlock the audio context
-      const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+      const ctx = getOrCreateAudioCtx()
+      if (ctx.state === 'suspended') {
+        ctx.resume()
+      }
+      // Play a silent buffer to fully unlock audio on iOS
       const buffer = ctx.createBuffer(1, 1, 22050)
       const source = ctx.createBufferSource()
       source.buffer = buffer
       source.connect(ctx.destination)
       source.start(0)
-
-      // Also prime our notification chime
-      if (audioRef.current) {
-        audioRef.current.load()
-      }
     }
 
-    document.addEventListener('touchstart', primeAudio, { once: true })
-    document.addEventListener('click', primeAudio, { once: true })
+    document.addEventListener('touchstart', primeAudio)
+    document.addEventListener('click', primeAudio)
 
     return () => {
       document.removeEventListener('touchstart', primeAudio)
@@ -77,12 +122,16 @@ export default function PlayerLayout({ children }: { children: React.ReactNode }
     const id = `notif-${++notifCounter}`
     setNotifications(prev => [...prev, { id, data, currentPlayerId: playerId }])
 
-    // Play notification sound
-    if (audioRef.current) {
-      audioRef.current.currentTime = 0
-      audioRef.current.play().catch(() => {
-        // Audio play failed (user hasn't interacted yet)
-      })
+    // Play notification chime
+    try {
+      const ctx = getOrCreateAudioCtx()
+      if (ctx.state === 'suspended') {
+        ctx.resume().then(() => playChime(ctx)).catch(() => {})
+      } else {
+        playChime(ctx)
+      }
+    } catch (e) {
+      console.warn('[PlayerLayout] Failed to play chime:', e)
     }
 
     // Vibrate on supported devices (Android)
@@ -120,23 +169,6 @@ export default function PlayerLayout({ children }: { children: React.ReactNode }
 
   return (
     <>
-      {/* Notification chime - short tone generated via data URI */}
-      <audio
-        ref={audioRef}
-        preload="auto"
-        src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YVoGAACAgICAgICAgICAgICAgICAgICA
-gH1xZV1YV1pdZnF9iJOdpqqrrqunoZqRh3xwZVtUUVFUW2VwhJCcp6+0tLOvqaGYjYF2a2JbV1da
-Ym15hpKdqbC0trWxrKWckoiAd29oY2BhZGlxeIOOl6GorK2sqaWfmZGJgXpzb2xrbW9zeX+Fio+U
-l5mZl5SSjoqFgX15d3V1d3l7foGDhYeIiIeGhYSCgH58e3p6ent8fH19fn5+fn5+fn5+fn5+fn5+
-fn5+fn5+f4CAgYKDhIWGh4iIiYmJiIiHhoWEgoGAf359fHt6eXl5eXl6ent8fX5/gIGChIOEhYaH
-iImJiomJiIeGhYOCgX9+fXx7enp5eXl5eXp7fH1+f4CCg4WGiImKi4yMjIuKiYiGhYOBf35+fXx7
-e3t7e3x9fn+AgoOEhoeIiYmJiYmIh4aFg4KAf359fXx8fHx8fX5/gIGCg4SFhoeHh4eGhYSEgoGA
-f359fHt6enp6ent8fX5/gYKDhYaHiImJiYmIh4WEgoGAf359fHt7e3t7fH1+gIGDhIaHiImKioqK
-iYiHhYSCgH9+fXx7e3t7e3x9fn+AgoSFhoeIiYmIiIeGhYSDgYB/fn19fHx8fH1+f4CBgoOEhYaH
-h4eHh4aFhIOCgIB/fn19fX1+fn+AgIGCgoODg4ODgoKBgH9/fn19fX1+fn+AgIGBgoKDg4ODg4OC
-goGAgH9/fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+"
-      />
-
       {/* Notification overlay — renders above all child pages */}
       <MatchNotification
         notifications={notifications}
