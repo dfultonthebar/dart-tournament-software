@@ -116,11 +116,6 @@ class ApiClient {
     return response.data;
   }
 
-  async getPlayerStats(playerId: string, gameId?: string): Promise<any> {
-    const params = gameId ? { game_id: gameId } : {};
-    const response = await this.client.get(`/scoring/player/${playerId}/stats`, { params });
-    return response.data;
-  }
 }
 
 export const api = new ApiClient();

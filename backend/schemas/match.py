@@ -24,10 +24,6 @@ class MatchBase(BaseModel):
     bracket_position: Optional[str] = None
 
 
-class MatchCreate(MatchBase):
-    player_ids: List[UUID] = Field(..., min_length=2, max_length=2)
-
-
 class MatchUpdate(BaseModel):
     status: Optional[MatchStatus] = None
     winner_id: Optional[UUID] = None
@@ -53,7 +49,3 @@ class MatchWithPlayers(MatchResponse):
     players: List[MatchPlayerInfo]
 
 
-class MatchPlayerCreate(BaseModel):
-    match_id: UUID
-    player_id: UUID
-    position: int = Field(..., ge=1, le=2)

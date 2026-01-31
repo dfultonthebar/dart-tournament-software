@@ -39,11 +39,6 @@ class PlayerResponse(PlayerBase):
         from_attributes = True
 
 
-class PlayerLogin(BaseModel):
-    email: EmailStr
-    password: str
-
-
 class PlayerSelfRegister(BaseModel):
     """Schema for public player self-registration (no password required)."""
     name: str = Field(..., min_length=1, max_length=100)

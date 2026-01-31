@@ -103,7 +103,6 @@ DartTournament/
 │   │   ├── admin.py, auth.py, dartboard.py, event.py
 │   │   ├── game.py, match.py, player.py, team.py, tournament.py
 │   ├── services/                    # Business logic
-│   │   ├── bracket.py              # Bracket generation
 │   │   ├── scoring.py              # Score calculation
 │   │   └── wamo_rules.py           # WAMO rules engine (X01, Cricket, RTC, Killer, etc.)
 │   ├── websocket/                   # Real-time WebSocket system
@@ -155,7 +154,6 @@ DartTournament/
 │       │   └── AuthContext.tsx       # Auth context provider
 │       └── lib/
 │           ├── api.ts               # API client
-│           ├── config.ts            # Config constants
 │           ├── offline.ts           # Offline queue
 │           └── websocket.ts         # WebSocket client (setPlayerId, reconnect)
 │
@@ -723,6 +721,7 @@ When helping users, determine:
 - Board assignment notifications: real-time WebSocket push to player phones with two-step arrival flow
 - WebSocket reconnect race condition: `intentionalDisconnect` flag prevents `onclose` from racing `setPlayerId`
 - Web Audio API chime: replaced silent base64 WAV with three-tone oscillator chime for mobile notification sound
+- Codebase cleanup: removed 11 root-level test scripts (5.3K lines), unused BracketService, 5 dead schemas, unused `get_session()`, unused npm deps (socket.io-client, zustand), unused shared types (PlayerStats, PlayerLogin), stale docs (SESSION_STATUS.md, PR_DESCRIPTION.md), unused `config.ts` re-export, removed `alembic` and `httpx` from requirements.txt, added `test-screenshots/` to .gitignore
 
 ---
 

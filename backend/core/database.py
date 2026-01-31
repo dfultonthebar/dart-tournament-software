@@ -36,15 +36,6 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
-def get_session():
-    """Get a database session as an async context manager.
-
-    This is primarily for testing and scripts.
-    For FastAPI endpoints, use get_db() with Depends().
-    """
-    return AsyncSessionLocal()
-
-
 async def init_db() -> None:
     """Initialize database tables."""
     from backend.models import Base

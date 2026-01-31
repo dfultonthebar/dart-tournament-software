@@ -3,7 +3,6 @@ from backend.schemas.player import (
     PlayerCreate,
     PlayerUpdate,
     PlayerResponse,
-    PlayerLogin,
     PlayerSelfRegister,
 )
 from backend.schemas.tournament import (
@@ -17,16 +16,13 @@ from backend.schemas.tournament import (
 )
 from backend.schemas.match import (
     MatchBase,
-    MatchCreate,
     MatchUpdate,
     MatchResponse,
     MatchWithPlayers,
-    MatchPlayerCreate,
     MatchPlayerInfo,
 )
 from backend.schemas.game import (
     GameCreate,
-    GameUpdate,
     GameResponse,
     ThrowCreate,
     ThrowResponse,
@@ -34,7 +30,6 @@ from backend.schemas.game import (
 )
 from backend.schemas.auth import (
     Token,
-    TokenData,
     LoginRequest,
     RegisterRequest,
     PasswordChange,
@@ -77,7 +72,6 @@ __all__ = [
     "PlayerCreate",
     "PlayerUpdate",
     "PlayerResponse",
-    "PlayerLogin",
     "PlayerSelfRegister",
     "TournamentBase",
     "TournamentCreate",
@@ -87,20 +81,16 @@ __all__ = [
     "TournamentEntryResponse",
     "TournamentEntryUpdate",
     "MatchBase",
-    "MatchCreate",
     "MatchUpdate",
     "MatchResponse",
     "MatchWithPlayers",
-    "MatchPlayerCreate",
     "MatchPlayerInfo",
     "GameCreate",
-    "GameUpdate",
     "GameResponse",
     "ThrowCreate",
     "ThrowResponse",
     "ScoreSubmission",
     "Token",
-    "TokenData",
     "LoginRequest",
     "RegisterRequest",
     "PasswordChange",

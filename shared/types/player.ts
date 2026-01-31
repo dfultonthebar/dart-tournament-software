@@ -29,16 +29,3 @@ export interface PlayerUpdate {
   gender?: 'M' | 'F';
 }
 
-export interface PlayerLogin {
-  email: string;
-  password: string;
-}
-
-export interface PlayerStats {
-  average: number;
-  total_darts: number;
-  highest_score: number;
-  doubles_hit: number;
-  triples_hit: number;
-  total_score: number;
-}

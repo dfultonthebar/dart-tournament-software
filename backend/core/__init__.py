@@ -1,5 +1,5 @@
 from backend.core.config import settings
-from backend.core.database import get_db, get_session, init_db, engine, AsyncSessionLocal
+from backend.core.database import get_db, init_db, engine, AsyncSessionLocal
 from backend.core.redis import get_redis, close_redis, CacheService
 from backend.core.security import (
     verify_password,
@@ -11,7 +11,6 @@ from backend.core.security import (
 __all__ = [
     "settings",
     "get_db",
-    "get_session",
     "init_db",
     "engine",
     "AsyncSessionLocal",

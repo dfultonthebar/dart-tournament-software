@@ -32,13 +32,6 @@ class GameCreate(BaseModel):
     leg_number: int = Field(..., ge=1)
 
 
-class GameUpdate(BaseModel):
-    status: Optional[GameStatus] = None
-    current_player_id: Optional[UUID] = None
-    winner_id: Optional[UUID] = None
-    game_data: Optional[Dict[str, Any]] = None
-
-
 class GameResponse(BaseModel):
     id: UUID
     match_id: UUID

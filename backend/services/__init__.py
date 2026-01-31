@@ -8,7 +8,6 @@ from backend.services.wamo_rules import (
     BaseballRules,
 )
 from backend.services.scoring import ScoringService
-from backend.services.bracket import BracketService
 
 __all__ = [
     "WAMOGameEngine",
@@ -19,5 +18,4 @@ __all__ = [
     "ShanghaiRules",
     "BaseballRules",
     "ScoringService",
-    "BracketService",
 ]
