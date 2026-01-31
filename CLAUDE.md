@@ -65,22 +65,156 @@ This is a **production-ready** dart tournament management system designed for Ra
 - **Testing**: Playwright (E2E), pytest (backend)
 - **Deployment**: Docker, Raspberry Pi standalone, systemd services
 
-### Architecture Components
+### Detailed Filesystem Structure
 
 ```
-├── backend/              # FastAPI async backend
-│   ├── api/             # REST endpoints
-│   ├── core/            # Config, security, database
-│   ├── models/          # SQLAlchemy models
-│   ├── schemas/         # Pydantic validation
-│   ├── services/        # Business logic & WAMO rules
-│   └── websocket/       # Real-time connections
-├── scoring-terminal/     # Touch-optimized scoring UI (port 3001)
-├── display-terminal/     # Read-only display UI (port 3002)
-├── mobile-app/          # PWA mobile app (port 3003)
-├── shared/              # TypeScript types shared across frontends
-├── tests/               # Playwright E2E tests
-└── deployment/          # Docker & Raspberry Pi configs
+DartTournament/
+├── backend/                          # FastAPI async backend (port 8000)
+│   ├── main.py                      # App entry point, WebSocket /ws endpoint
+│   ├── requirements.txt             # Python dependencies
+│   ├── api/                         # REST route handlers
+│   │   ├── auth.py                  # Register, login, PIN login, /auth/me
+│   │   ├── dartboards.py           # Dartboard CRUD, board assignment + notifications
+│   │   ├── events.py               # Event management
+│   │   ├── matches.py              # Match ops, /arrive, /on-my-way, /report-result
+│   │   ├── players.py              # Player CRUD
+│   │   ├── scoring.py              # Score submission
+│   │   └── tournaments.py          # Tournament CRUD, bracket generation, lucky draw
+│   ├── core/                        # Config & infrastructure
+│   │   ├── config.py               # Settings (DB, Redis, CORS, SECRET_KEY)
+│   │   ├── database.py             # Async SQLAlchemy engine & session
+│   │   ├── redis.py                # Redis cache config
+│   │   └── security.py             # JWT creation & verification
+│   ├── models/                      # SQLAlchemy ORM models
+│   │   ├── base.py                 # BaseModel (id, created_at, updated_at)
+│   │   ├── admin.py                # Admin user
+│   │   ├── dartboard.py            # Dartboard (number, name, is_available)
+│   │   ├── event.py                # Event
+│   │   ├── event_entry.py          # Event entry
+│   │   ├── game.py                 # Game (game_data JSON, status)
+│   │   ├── match.py                # Match (status, winner_id, winner_team_id)
+│   │   ├── match_player.py         # MatchPlayer (on_my_way, arrived_at_board, reported_win)
+│   │   ├── player.py               # Player (name, email, phone, pin, gender)
+│   │   ├── team.py                 # Team (Lucky Draw Doubles)
+│   │   ├── throw.py                # Individual throw/score
+│   │   ├── tournament.py           # Tournament (format, game_type, settings)
+│   │   └── tournament_entry.py     # Tournament registration entry
+│   ├── schemas/                     # Pydantic request/response schemas
+│   │   ├── admin.py, auth.py, dartboard.py, event.py
+│   │   ├── game.py, match.py, player.py, team.py, tournament.py
+│   ├── services/                    # Business logic
+│   │   ├── bracket.py              # Bracket generation
+│   │   ├── scoring.py              # Score calculation
+│   │   └── wamo_rules.py           # WAMO rules engine (X01, Cricket, RTC, Killer, etc.)
+│   ├── websocket/                   # Real-time WebSocket system
+│   │   ├── connection.py           # ConnectionManager (connect, broadcast, send_to_player)
+│   │   └── handlers.py            # Event handlers (notify_board_assigned, etc.)
+│   └── scripts/                     # DB scripts
+│       ├── init_db.py              # Create all tables
+│       └── seed_data.py            # Seed sample data
+│
+├── scoring-terminal/                 # Admin + player scoring UI (port 3001)
+│   └── src/
+│       ├── app/
+│       │   ├── layout.tsx           # Root layout
+│       │   ├── page.tsx             # Home page
+│       │   ├── error.tsx            # Error boundary
+│       │   ├── admin/               # Admin interface
+│       │   │   ├── layout.tsx       # Admin sidebar layout
+│       │   │   ├── page.tsx         # Admin dashboard
+│       │   │   ├── login/page.tsx   # Admin login
+│       │   │   ├── announce/page.tsx # Match announcements
+│       │   │   ├── dartboards/page.tsx # Board management
+│       │   │   ├── players/page.tsx # Player management
+│       │   │   ├── tournaments/page.tsx # Tournament list
+│       │   │   ├── tournaments/[id]/page.tsx # Tournament detail
+│       │   │   ├── tournaments/[id]/lucky-draw/page.tsx
+│       │   │   ├── events/page.tsx, events/[id]/page.tsx, events/new/page.tsx
+│       │   │   ├── darts/page.tsx   # Darts scoring
+│       │   │   └── volleyball/page.tsx
+│       │   ├── brackets/            # Bracket views
+│       │   │   ├── page.tsx         # Bracket list
+│       │   │   └── [id]/page.tsx    # Bracket detail
+│       │   ├── matches/             # Active matches
+│       │   │   ├── layout.tsx
+│       │   │   └── page.tsx
+│       │   ├── player/              # Player-facing pages
+│       │   │   ├── layout.tsx       # WS notifications + audio chime
+│       │   │   ├── page.tsx         # Player login (PIN)
+│       │   │   ├── matches/page.tsx # Player's matches (two-step arrival)
+│       │   │   ├── tournaments/page.tsx # Browse tournaments
+│       │   │   └── register/page.tsx # Tournament registration
+│       │   ├── register/page.tsx    # QR code registration page
+│       │   ├── score/[matchId]/page.tsx # Live match scoring
+│       │   └── scoring/page.tsx     # Scoring dashboard
+│       ├── components/
+│       │   ├── AdminSidebar.tsx     # Admin nav sidebar
+│       │   ├── Breadcrumbs.tsx      # Navigation breadcrumbs
+│       │   └── MatchNotification.tsx # Board assignment notification overlay
+│       ├── contexts/
+│       │   └── AuthContext.tsx       # Auth context provider
+│       └── lib/
+│           ├── api.ts               # API client
+│           ├── config.ts            # Config constants
+│           ├── offline.ts           # Offline queue
+│           └── websocket.ts         # WebSocket client (setPlayerId, reconnect)
+│
+├── display-terminal/                 # Public display screen (port 3002)
+│   └── src/
+│       ├── app/
+│       │   ├── layout.tsx, page.tsx, error.tsx
+│       │   └── brackets/[id]/page.tsx # Bracket display (WB/LB/GF sections)
+│       ├── components/
+│       │   └── RegistrationQRCode.tsx # QR code for player registration
+│       └── lib/
+│
+├── mobile-app/                       # Mobile PWA (port 3003, read-only)
+│   └── src/
+│       ├── app/
+│       │   ├── layout.tsx, page.tsx, globals.css
+│       └── lib/
+│           ├── api.ts, offline.ts, websocket.ts
+│
+├── shared/                           # Shared across all frontends
+│   ├── types/
+│   │   ├── index.ts                 # Re-exports all types
+│   │   ├── auth.ts, event.ts, game.ts, match.ts
+│   │   ├── player.ts, tournament.ts
+│   │   └── websocket.ts            # WS event types (BOARD_ASSIGNED, etc.)
+│   ├── lib/
+│   │   ├── api-url.ts              # getApiUrl() / getWsUrl() shared utility
+│   │   └── error-message.ts        # getErrorMessage() utility
+│   └── constants/
+│       ├── index.ts
+│       └── wamo-rules.ts           # WAMO game rule constants
+│
+├── deployment/                       # Deployment configurations
+│   ├── docker/
+│   │   ├── Dockerfile.backend, Dockerfile.frontend
+│   │   └── docker-compose.prod.yml
+│   ├── systemd/
+│   │   ├── dart-backend.service, dart-scoring.service
+│   └── standalone/
+│       └── setup.sh                 # Raspberry Pi setup script
+│
+├── tests/                            # Playwright E2E tests
+│   ├── api.spec.ts, integration.spec.ts
+│   ├── dart-tournament-e2e.spec.ts
+│   ├── scoring-terminal.spec.ts, scoring-test.spec.ts
+│   └── dartboards-test.spec.ts
+│
+├── docs/                             # Documentation
+│   ├── API.md, DEPLOYMENT.md, DEVELOPMENT.md, WAMO_RULES.md
+│
+├── .github/workflows/ci.yml         # CI/CD pipeline
+│
+├── start-prod.sh, stop-prod.sh      # Production scripts
+├── start-dev.sh, stop-dev.sh        # Development scripts
+├── test-system.sh                    # Health check script
+├── docker-compose.yml               # Local Docker setup
+├── playwright.config.ts             # Playwright config
+├── package.json                      # Root package (npm workspaces)
+└── .env                              # Environment variables
 ```
 
 ## System Status
