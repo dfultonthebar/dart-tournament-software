@@ -38,6 +38,8 @@ class MatchResponse(MatchBase):
     winner_id: Optional[UUID]
     winner_team_id: Optional[UUID] = None
     dartboard_id: Optional[UUID] = None
+    dartboard_number: Optional[int] = None
+    dartboard_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

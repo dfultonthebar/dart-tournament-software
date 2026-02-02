@@ -37,7 +37,7 @@ async def list_matches(
     db: AsyncSession = Depends(get_db)
 ):
     """List matches with optional filters."""
-    query = select(Match).options(selectinload(Match.match_players)).offset(skip).limit(limit)
+    query = select(Match).options(selectinload(Match.match_players), selectinload(Match.dartboard)).offset(skip).limit(limit)
 
     if tournament_id:
         query = query.where(Match.tournament_id == tournament_id)
@@ -79,6 +79,8 @@ async def list_matches(
             "winner_id": match.winner_id,
             "winner_team_id": match.winner_team_id,
             "dartboard_id": match.dartboard_id,
+            "dartboard_number": match.dartboard.number if match.dartboard else None,
+            "dartboard_name": match.dartboard.name if match.dartboard else None,
             "created_at": match.created_at,
             "updated_at": match.updated_at,
             "players": players
@@ -96,7 +98,7 @@ async def get_match(
     """Get a specific match with player information."""
     result = await db.execute(
         select(Match)
-        .options(selectinload(Match.match_players))
+        .options(selectinload(Match.match_players), selectinload(Match.dartboard))
         .where(Match.id == match_id)
     )
     match = result.scalar_one_or_none()
@@ -128,6 +130,8 @@ async def get_match(
         "winner_id": match.winner_id,
         "winner_team_id": match.winner_team_id,
         "dartboard_id": match.dartboard_id,
+        "dartboard_number": match.dartboard.number if match.dartboard else None,
+        "dartboard_name": match.dartboard.name if match.dartboard else None,
         "created_at": match.created_at,
         "updated_at": match.updated_at,
         "players": players

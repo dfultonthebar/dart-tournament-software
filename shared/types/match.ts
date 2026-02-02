@@ -31,6 +31,8 @@ export interface Match {
   winner_id?: string;
   winner_team_id?: string;
   dartboard_id?: string | null;
+  dartboard_number?: number | null;
+  dartboard_name?: string | null;
   created_at: string;
   updated_at: string;
 }
